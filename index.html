@@ -5,20 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlowMaster - Cash Flow & Debts</title>
     
-    <!-- Memuat Tailwind CSS untuk desain dan styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Memuat React & ReactDOM dari CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Memuat Babel untuk menerjemahkan kode JSX di browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* Kustomisasi scrollbar agar rapi */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -26,20 +20,16 @@
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-teal-200">
-    
-    <!-- Elemen pembungkus utama aplikasi React -->
     <div id="root"></div>
 
-    <!-- Script aplikasi dengan tipe text/babel -->
     <script type="text/babel">
         // --- KONFIGURASI DATABASE API CLOUDFLARE D1 ---
-        // Masukkan URL Worker Anda di dalam tanda kutip di bawah ini.
         const API_URL = "https://api-cashflow.team-id.workers.dev/";
         const BASE_URL = API_URL ? API_URL.trim().replace(/\/$/, "") : "";
 
         const { useState, useEffect, useMemo } = React;
 
-        // --- ICON COMPONENTS (Inline SVGs) ---
+        // --- ICON COMPONENTS ---
         const IconWallet = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
         const IconTrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
         const IconTrendingDown = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>;
@@ -52,6 +42,7 @@
         const IconCamera = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>;
         const IconX = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
         const IconFileText = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+        const IconTag = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
 
         // --- HELPER COMPONENTS ---
         const PhotoGallery = ({ photos, title="Galeri Foto" }) => {
@@ -137,13 +128,8 @@
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center justify-end h-full relative">
                     <div className="text-[10px] font-bold text-slate-700 mb-1 whitespace-nowrap">{val} {unit}</div>
-                    <div 
-                      style={{ height: `${(val / max) * 75}%`, minHeight: '4px', backgroundColor: color }} 
-                      className="w-full rounded-t-sm transition-all duration-300"
-                    ></div>
-                    <div className="text-[9px] text-slate-400 mt-1 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center" title={label}>
-                      {label}
-                    </div>
+                    <div style={{ height: `${(val / max) * 75}%`, minHeight: '4px', backgroundColor: color }} className="w-full rounded-t-sm transition-all duration-300"></div>
+                    <div className="text-[9px] text-slate-400 mt-1 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center" title={label}>{label}</div>
                   </div>
                 );
               })}
@@ -154,11 +140,7 @@
         const ExpensePieChart = ({ transactions, materials, formatIDR }) => {
            const [tooltip, setTooltip] = useState(null);
            const expenses = transactions.filter(t => t.type === 'out');
-           if(expenses.length === 0) return (
-               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center text-slate-500 text-sm">
-                   Belum ada pengeluaran pada periode ini
-               </div>
-           );
+           if(expenses.length === 0) return <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center text-slate-500 text-sm">Belum ada pengeluaran pada periode ini</div>;
 
            const catTotals = {};
            expenses.forEach(tx => {
@@ -238,7 +220,7 @@
 
         // --- MAIN APP COMPONENT ---
         function CashFlowApp() {
-          // --- STATES ---
+          const [categories, setCategories] = useState([]);
           const [materials, setMaterials] = useState([]);
           const [places, setPlaces] = useState([]);
           const [transactions, setTransactions] = useState([]);
@@ -246,44 +228,38 @@
 
           // --- FETCH DATA ---
           useEffect(() => {
-             if (!BASE_URL) return;
+             if (!BASE_URL) {
+                 // Fallback if API is empty
+                 setCategories([
+                    {id: 'CAT-1', name: 'Motor'}, {id: 'CAT-2', name: 'Bensin'}, 
+                    {id: 'CAT-3', name: 'Hobby'}, {id: 'CAT-4', name: 'Internet'}, 
+                    {id: 'CAT-5', name: 'Jajan'}, {id: 'CAT-6', name: 'Handphone'}
+                 ]);
+                 return;
+             }
              
-             // Fungsi aman untuk mengatasi error JSON jika Cloudflare merespon dengan text error
              const fetchSafe = async (endpoint) => {
                  try {
                      const res = await fetch(`${BASE_URL}/${endpoint}`);
                      const text = await res.text();
-                     try {
-                         return JSON.parse(text);
-                     } catch (e) {
-                         console.error(`Gagal parsing JSON dari /${endpoint}:`, text);
-                         return null;
-                     }
-                 } catch (err) {
-                     console.error(`Gagal Fetch dari /${endpoint}:`, err);
-                     return null;
-                 }
+                     try { return JSON.parse(text); } 
+                     catch (e) { console.error(`Gagal parsing JSON dari /${endpoint}:`, text); return null; }
+                 } catch (err) { console.error(`Gagal Fetch dari /${endpoint}:`, err); return null; }
              };
 
              Promise.all([
-                 fetchSafe('materials'),
-                 fetchSafe('places'),
-                 fetchSafe('transactions'),
-                 fetchSafe('debts')
-             ]).then(([m, p, t, d]) => {
-                 // Memastikan string JSON dari database D1 diubah kembali menjadi Array JavaScript
+                 fetchSafe('categories'), fetchSafe('materials'), fetchSafe('places'), fetchSafe('transactions'), fetchSafe('debts')
+             ]).then(([c, m, p, t, d]) => {
+                 if (c?.success && c.data.length > 0) setCategories(c.data);
+                 else setCategories([{id: 'CAT-1', name: 'Motor'}, {id: 'CAT-2', name: 'Bensin'}, {id: 'CAT-3', name: 'Hobby'}, {id: 'CAT-4', name: 'Internet'}, {id: 'CAT-5', name: 'Jajan'}, {id: 'CAT-6', name: 'Handphone'}]);
+
                  if (m?.success) setMaterials(m.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
                  if (p?.success) setPlaces(p.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
                  if (t?.success) setTransactions(t.data);
-                 if (d?.success) setDebts(d.data.map(x => ({
-                     ...x, 
-                     agreementPhotos: x.agreementPhotos ? JSON.parse(x.agreementPhotos) : [], 
-                     settlementPhotos: x.settlementPhotos ? JSON.parse(x.settlementPhotos) : []
-                 })));
+                 if (d?.success) setDebts(d.data.map(x => ({ ...x, agreementPhotos: x.agreementPhotos ? JSON.parse(x.agreementPhotos) : [], settlementPhotos: x.settlementPhotos ? JSON.parse(x.settlementPhotos) : [] })));
              });
           }, []);
 
-          // Navigation State
           const [currentView, setCurrentView] = useState('dashboard');
           const [viewParams, setViewParams] = useState({});
 
@@ -291,25 +267,16 @@
           const formatIDR = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
           const formatDate = (dateStr) => new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(dateStr));
           
-          const navigate = (view, params = {}) => {
-            setCurrentView(view);
-            setViewParams(params);
-          };
-
-          const getPrefix = (category) => {
-            const map = { 'Motor': 'MTR', 'Bensin': 'BSN', 'Hobby': 'HBB', 'Internet': 'INT', 'Jajan': 'JJN', 'Handphone': 'HPN' };
-            return map[category] || 'MAT';
-          };
+          const navigate = (view, params = {}) => { setCurrentView(view); setViewParams(params); };
 
           const generateMaterialId = (category) => {
-            const prefix = getPrefix(category);
-            const existing = materials.filter(m => m.id.startsWith(prefix));
-            return `${prefix}-${String(existing.length + 1).padStart(3, '0')}`;
+            const existing = materials.filter(m => m.id.startsWith('MAT'));
+            return `MAT-${String(existing.length + 1).padStart(3, '0')}`;
           };
-
           const generatePlaceId = () => `PLC-${String(places.length + 1).padStart(3, '0')}`;
           const generateTxId = () => `TX-${Date.now().toString().slice(-6)}`;
           const generateDebtId = () => `DBT-${Date.now().toString().slice(-6)}`;
+          const generateCatId = () => `CAT-${Date.now().toString().slice(-6)}`;
 
           const parseTxDate = (dateStr) => {
             const [year, month, day] = dateStr.split('-');
@@ -319,10 +286,7 @@
           const getFilteredTransactions = (txs, period) => {
             if (period === 'all') return txs;
             const now = new Date();
-            const y = now.getFullYear();
-            const m = now.getMonth();
-            const d = now.getDate();
-            
+            const y = now.getFullYear(); const m = now.getMonth(); const d = now.getDate();
             const today = new Date(y, m, d);
             const dayOfWeek = today.getDay();
             const diffToMonday = d - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -355,7 +319,8 @@
                          </button>
                       ) : (tx.desc || 'Transaksi')}
                     </p>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(tx.date)} {isOut && mat ? `• ${mat.category}` : ''}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {isOut && mat ? `• ${mat.category}` : ''}</p>
+                    {tx.note && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
                   </div>
                 </div>
                 <div className={`font-semibold whitespace-nowrap flex-shrink-0 ml-2 ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
@@ -827,6 +792,7 @@
                               </div>
                               <p className="text-xs text-slate-500 mb-1">{mat?.brand || '-'} • PN: {mat?.partNum || '-'}</p>
                               <p className="text-xs text-slate-400">{formatDate(tx.date)} • {tx.qty || 1} {mat?.unit || 'Pcs'}</p>
+                              {tx.note && <p className="text-[11px] text-slate-400 italic mt-0.5 line-clamp-2">"{tx.note}"</p>}
                             </div>
                             <div className="text-right">
                                <span className="font-bold text-rose-600 block">{formatIDR(tx.price)}</span>
@@ -857,6 +823,7 @@
             const [placeId, setPlaceId] = useState('');
             const [placeSearch, setPlaceSearch] = useState('');
             const [showPlaceDropdown, setShowPlaceDropdown] = useState(false);
+            const [note, setNote] = useState('');
             
             const totalPrice = (parseFloat(qty) || 0) * (parseInt(pricePerUnit) || 0);
 
@@ -873,29 +840,22 @@
             }, [viewParams, materials, places]);
 
             const selectMaterial = (m) => {
-              setMaterialId(m.id);
-              setMatSearch(m.id);
-              setDescSearch(`${m.desc} - ${m.partNum}`);
-              setShowMatDropdown(false);
-              setShowDescDropdown(false);
+              setMaterialId(m.id); setMatSearch(m.id); setDescSearch(`${m.desc} - ${m.partNum}`);
+              setShowMatDropdown(false); setShowDescDropdown(false);
             };
 
             const selectPlace = (p) => {
-              setPlaceId(p.id);
-              setPlaceSearch(p.name);
-              setShowPlaceDropdown(false);
+              setPlaceId(p.id); setPlaceSearch(p.name); setShowPlaceDropdown(false);
             };
 
-            const handleBlur = (setter) => {
-              setTimeout(() => setter(false), 200);
-            };
+            const handleBlur = (setter) => setTimeout(() => setter(false), 200);
 
             const handleSave = (e) => {
               e.preventDefault();
               if (!materialId || !totalPrice || !placeId) return;
               const newTx = {
                 id: generateTxId(), type: 'out', date, materialId, qty: parseFloat(qty),
-                pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId
+                pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId, note
               };
               setTransactions([...transactions, newTx]);
               if (BASE_URL) fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
@@ -905,9 +865,8 @@
             const outMaterials = materials.filter(m => m.flowType === 'out' || m.flowType === undefined);
             const filteredByMat = outMaterials.filter(m => m.id.toLowerCase().includes(matSearch.toLowerCase()));
             const filteredByDesc = outMaterials.filter(m => {
-              const searchStr = descSearch.toLowerCase();
               const combined = `${m.desc} - ${m.partNum || ''}`.toLowerCase();
-              return combined.includes(searchStr);
+              return combined.includes(descSearch.toLowerCase());
             });
             const filteredPlaces = places.filter(p => p.name.toLowerCase().includes(placeSearch.toLowerCase()));
 
@@ -950,7 +909,7 @@
                            onChange={e => { setDescSearch(e.target.value); setMaterialId(''); setShowDescDropdown(true); }}
                            onFocus={() => setShowDescDropdown(true)} onBlur={() => handleBlur(setShowDescDropdown)}
                            className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-white text-sm"
-                           placeholder="Atau ketik Nama Barang - Part Number..." required={!materialId} />
+                           placeholder="Atau ketik Nama Barang..." required={!materialId} />
                         {showDescDropdown && (
                           <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                             {filteredByDesc.length > 0 ? filteredByDesc.map(m => (
@@ -1001,6 +960,11 @@
                       )}
                     </div>
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Tambahan (Note)</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50 text-sm" placeholder="Catatan opsional..."></textarea>
+                  </div>
 
                   <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-teal-200 transition-all mt-4">Simpan Pengeluaran</button>
                 </form>
@@ -1017,7 +981,7 @@
             const [partNum, setPartNum] = useState(existing?.partNum || '');
             const [brand, setBrand] = useState(existing?.brand || '');
             const [unit, setUnit] = useState(existing?.unit || 'Pcs');
-            const [category, setCategory] = useState(existing?.category || 'Motor');
+            const [category, setCategory] = useState(existing?.category || (categories[0]?.name || 'Motor'));
             const [amount, setAmount] = useState(existing?.amount || '');
             const [source, setSource] = useState(existing?.source || '');
             const [photos, setPhotos] = useState(existing?.photos || []);
@@ -1026,12 +990,9 @@
               e.preventDefault();
               const matData = {
                 flowType, desc, 
-                partNum: flowType === 'out' ? partNum : '', 
-                brand: flowType === 'out' ? brand : '', 
-                unit: flowType === 'out' ? unit : '', 
-                category: flowType === 'out' ? category : 'Income',
-                amount: flowType === 'in' ? parseInt(amount) : undefined,
-                source: flowType === 'in' ? source : undefined,
+                partNum: flowType === 'out' ? partNum : '', brand: flowType === 'out' ? brand : '', 
+                unit: flowType === 'out' ? unit : '', category: flowType === 'out' ? category : 'Income',
+                amount: flowType === 'in' ? parseInt(amount) : undefined, source: flowType === 'in' ? source : undefined,
                 photos: flowType === 'out' ? JSON.stringify(photos) : "[]"
               };
 
@@ -1047,7 +1008,6 @@
                 navigate(viewParams.returnTo || 'materials', { prefilledMaterial: newId });
               }
             };
-            const categories = ["Motor", "Bensin", "Hobby", "Internet", "Jajan", "Handphone"];
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
@@ -1068,28 +1028,31 @@
                   {flowType === 'out' ? (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Kategori</label>
+                        <div className="flex justify-between items-center mb-1">
+                           <label className="block text-sm font-medium text-slate-700">Kategori</label>
+                           <button type="button" onClick={() => navigate('categories')} className="text-xs text-teal-600 font-semibold hover:underline">+ Kelola</button>
+                        </div>
                         <select value={category} onChange={e => setCategory(e.target.value)} disabled={isEdit} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50 disabled:opacity-70">
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi Barang</label>
-                        <input type="text" value={desc} onChange={e => setDesc(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" />
+                        <input type="text" value={desc} onChange={e => setDesc(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Part Number</label>
-                          <input type="text" value={partNum} onChange={e => setPartNum(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" />
+                          <input type="text" value={partNum} onChange={e => setPartNum(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Brand</label>
-                          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" />
+                          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                         </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Satuan</label>
-                        <input type="text" value={unit} onChange={e => setUnit(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" />
+                        <input type="text" value={unit} onChange={e => setUnit(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">Galeri Foto Barang</label>
@@ -1111,17 +1074,17 @@
                     <>
                        <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pemasukan</label>
-                        <input type="text" value={desc} onChange={e => setDesc(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50" />
+                        <input type="text" value={desc} onChange={e => setDesc(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Sumber Income</label>
-                        <input type="text" value={source} onChange={e => setSource(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50" />
+                        <input type="text" value={source} onChange={e => setSource(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah Default (Opsional)</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
-                          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50" />
+                          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 bg-slate-50" />
                         </div>
                       </div>
                     </>
@@ -1158,7 +1121,7 @@
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
-                  <button onClick={() => navigate(isEdit ? 'place_detail' : (viewParams.returnTo || 'places'), { id: isEdit ? existing.id : undefined })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <button onClick={() => navigate(isEdit ? 'place_detail' : (viewParams.returnTo || 'dashboard'), { id: isEdit ? existing.id : undefined })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                   <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Toko / Vendor' : 'Tambah Tempat'}</h2>
                 </div>
                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
@@ -1204,6 +1167,7 @@
             const [showMatDropdown, setShowMatDropdown] = useState(false);
             const [showDescDropdown, setShowDescDropdown] = useState(false);
             const [amount, setAmount] = useState('');
+            const [note, setNote] = useState('');
 
             const selectMaterial = (m) => {
               setMaterialId(m.id); setMatSearch(m.id); setDescSearch(`${m.desc} - ${m.source}`);
@@ -1215,7 +1179,7 @@
             const handleSave = (e) => {
               e.preventDefault();
               if (!materialId || !amount) return;
-              const newTx = { id: generateTxId(), type: 'in', date, materialId, amount: parseInt(amount) };
+              const newTx = { id: generateTxId(), type: 'in', date, materialId, amount: parseInt(amount), note };
               setTransactions([...transactions, newTx]);
               if (BASE_URL) fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
               navigate('dashboard');
@@ -1268,281 +1232,347 @@
                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl pl-12 pr-4 py-3 bg-slate-50" placeholder="0" />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Tambahan (Note)</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50 text-sm" placeholder="Catatan opsional..."></textarea>
+                  </div>
                   <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">Simpan Pemasukan</button>
                 </form>
               </div>
             )
            };
 
-           // --- DEBTS (UTANG & PIUTANG) COMPONENTS ---
-
-           // 9. List Debts
+           // 9. Debt List
            const DebtList = () => {
-              const [tab, setTab] = useState('utang'); // 'utang' | 'piutang'
-              const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'settled'
+             const [tab, setTab] = useState(viewParams.tab || 'utang');
+             const filteredDebts = debts.filter(d => d.type === tab).sort((a, b) => new Date(b.date) - new Date(a.date));
+             const activeDebts = filteredDebts.filter(d => d.status === 'active');
+             const paidDebts = filteredDebts.filter(d => d.status === 'paid');
 
-              const filteredDebts = debts.filter(d => d.type === tab && d.status === statusFilter);
-
-              return (
-                 <div className="space-y-4 pb-20 sm:pb-6 fade-in">
-                    <div className="flex items-center justify-between">
-                       <h2 className="text-2xl font-bold text-slate-800">Utang & Piutang</h2>
-                       <button onClick={() => navigate('add_debt')} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl shadow-sm transition-colors">
-                          <IconPlus />
-                       </button>
-                    </div>
-
-                    <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                       <button onClick={() => setTab('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Utang (Saya Pinjam)</button>
-                       <button onClick={() => setTab('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'piutang' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Piutang (Memberi Pinjaman)</button>
-                    </div>
-
-                    <div className="flex justify-between items-center px-1">
-                       <h3 className="font-bold text-slate-600 text-sm">Status</h3>
-                       <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white outline-none">
-                          <option value="active">Belum Lunas (Aktif)</option>
-                          <option value="settled">Sudah Lunas (Selesai)</option>
-                       </select>
-                    </div>
-
-                    {filteredDebts.length === 0 ? (
-                       <div className="bg-white p-6 rounded-3xl border border-slate-100 text-center text-slate-500 text-sm shadow-sm">
-                          Belum ada catatan {tab} {statusFilter === 'active' ? 'yang belum lunas' : 'yang sudah lunas'}.
-                       </div>
-                    ) : (
-                       <div className="grid gap-4">
-                          {filteredDebts.map(d => (
-                             <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all flex justify-between items-center">
-                                <div>
-                                   <div className="flex items-center gap-2 mb-1">
-                                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${d.status === 'active' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                         {d.status === 'active' ? 'Belum Lunas' : 'Lunas'}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400 font-medium">Jatuh Tempo: {formatDate(d.dueDate)}</span>
-                                   </div>
-                                   <h3 className="font-bold text-slate-800 text-lg">{d.personName}</h3>
-                                   <p className="text-xs text-slate-500">Tgl Pinjam: {formatDate(d.date)}</p>
-                                </div>
-                                <div className={`font-bold text-lg ${tab === 'utang' ? 'text-rose-600' : 'text-indigo-600'}`}>
-                                   {formatIDR(d.amount)}
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    )}
+             return (
+               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
+                 <div className="flex items-center justify-between">
+                   <h2 className="text-2xl font-bold text-slate-800">Utang & Piutang</h2>
+                   <button onClick={() => navigate('add_debt', { type: tab })} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
+                     <IconPlus />
+                   </button>
                  </div>
-              )
-           }
+                 
+                 <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                   <button onClick={() => setTab('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Utang (Pinjam)</button>
+                   <button onClick={() => setTab('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'piutang' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Piutang (Beri)</button>
+                 </div>
 
-           // 10. Add Debt Form
+                 <div className="space-y-4">
+                    <h3 className="font-bold text-slate-700">Belum Lunas ({activeDebts.length})</h3>
+                    {activeDebts.length === 0 && <p className="text-sm text-slate-400">Tidak ada data aktif.</p>}
+                    {activeDebts.map(d => (
+                       <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                             <span className="font-bold text-slate-800 text-lg">{d.personName}</span>
+                             <span className={`font-bold ${tab === 'utang' ? 'text-rose-600' : 'text-teal-600'}`}>{formatIDR(d.amount)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-slate-500">
+                             <span>Dibuat: {formatDate(d.date)}</span>
+                             <span className="font-semibold text-rose-500">Jatuh Tempo: {formatDate(d.dueDate)}</span>
+                          </div>
+                       </div>
+                    ))}
+
+                    <h3 className="font-bold text-slate-700 mt-6">Sudah Lunas ({paidDebts.length})</h3>
+                    {paidDebts.length === 0 && <p className="text-sm text-slate-400">Tidak ada riwayat lunas.</p>}
+                    {paidDebts.map(d => (
+                       <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-slate-50 opacity-75 p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:opacity-100 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                             <span className="font-bold text-slate-800 text-lg line-through">{d.personName}</span>
+                             <span className="font-bold text-slate-500">{formatIDR(d.amount)}</span>
+                          </div>
+                          <div className="text-xs text-slate-500">
+                             Lunas pada: {formatDate(d.settledDate)}
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+               </div>
+             );
+           };
+
+           // 10. Add Debt
            const AddDebt = () => {
-              const [type, setType] = useState('utang');
-              const [personName, setPersonName] = useState('');
-              const [amount, setAmount] = useState('');
-              const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-              const [dueDate, setDueDate] = useState('');
-              const [agreementPhotos, setAgreementPhotos] = useState([]);
+             const [type, setType] = useState(viewParams.type || 'utang');
+             const [personName, setPersonName] = useState('');
+             const [amount, setAmount] = useState('');
+             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+             const [dueDate, setDueDate] = useState('');
+             const [agreementPhotos, setAgreementPhotos] = useState([]);
 
-              const handleSave = (e) => {
-                 e.preventDefault();
-                 if(!personName || !amount || !dueDate) return;
+             const handleSave = (e) => {
+               e.preventDefault();
+               if (!personName || !amount || !dueDate) return;
+               
+               const newDebt = {
+                 id: generateDebtId(), type, personName, amount: parseInt(amount), date, dueDate, status: 'active',
+                 agreementPhotos, settlementPhotos: [], settledDate: null
+               };
 
-                 const newDebt = {
-                    id: generateDebtId(), type, personName, amount: parseInt(amount), date, dueDate, status: 'active',
-                    agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"
-                 };
+               const txType = type === 'utang' ? 'in' : 'out';
+               const txDesc = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
+               const newTx = {
+                 id: generateTxId(), type: txType, date, desc: txDesc,
+                 amount: txType === 'in' ? parseInt(amount) : null, price: txType === 'out' ? parseInt(amount) : null, qty: 1
+               };
 
-                 // Buat Transaksi otomatis. Utang -> Pemasukan (Cash In). Piutang -> Pengeluaran (Cash Out)
-                 const newTx = {
-                    id: generateTxId(),
-                    type: type === 'utang' ? 'in' : 'out',
-                    date,
-                    desc: type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`,
-                 };
-                 if (type === 'utang') { newTx.amount = parseInt(amount); } 
-                 else { newTx.price = parseInt(amount); }
+               setDebts([...debts, newDebt]);
+               setTransactions([...transactions, newTx]);
 
-                 setDebts([...debts, { ...newDebt, agreementPhotos }]);
-                 setTransactions([...transactions, newTx]);
+               if (BASE_URL) {
+                  const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(newDebt.agreementPhotos), settlementPhotos: "[]"};
+                  fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
+                  fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+               }
+               navigate('debts', { tab: type });
+             };
 
-                 if(BASE_URL) {
-                    fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newDebt) }).catch(console.error);
-                    fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
-                 }
-                 navigate('debts');
-              }
-
-              return (
-                 <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
-                    <div className="flex items-center gap-3">
-                       <button onClick={() => navigate('debts')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
-                       <h2 className="text-xl font-bold text-slate-800">Catat {type === 'utang' ? 'Utang' : 'Piutang'} Baru</h2>
-                    </div>
-
-                    <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
-                          <button type="button" onClick={() => setType('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Utang</button>
-                          <button type="button" onClick={() => setType('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'piutang' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Piutang</button>
-                       </div>
-
-                       <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Nama Orang/Pihak</label>
-                          <input type="text" value={personName} onChange={e => setPersonName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" placeholder={type === 'utang' ? 'Cth: Budi (Pemberi Pinjaman)' : 'Cth: Andi (Yang Meminjam)'} />
-                       </div>
-                       
-                       <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Nominal (Rp)</label>
-                          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" placeholder="0" />
-                       </div>
-
-                       <div className="grid grid-cols-2 gap-4">
-                          <div>
-                             <label className="block text-sm font-medium text-slate-700 mb-1">Tgl Pinjam</label>
-                             <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
-                          </div>
-                          <div>
-                             <label className="block text-sm font-medium text-slate-700 mb-1">Estimasi Lunas</label>
-                             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
-                          </div>
-                       </div>
-
-                       <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">Foto Perjanjian / Bukti Transfer (Opsional)</label>
-                          <div className="flex flex-wrap gap-3">
-                             {agreementPhotos.map((p, i) => (
-                                <div key={i} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden group">
-                                   <img src={p} alt="Preview" className="w-full h-full object-cover" />
-                                   <button type="button" onClick={() => setAgreementPhotos(agreementPhotos.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-white/90 text-rose-500 rounded-md"><IconX /></button>
-                                </div>
-                             ))}
-                             <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-500 cursor-pointer">
-                                <IconCamera /><span className="text-[10px] font-medium mt-1">Upload</span>
-                                <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setAgreementPhotos, agreementPhotos)} />
-                             </label>
-                          </div>
-                       </div>
-
-                       <button type="submit" className={`w-full text-white font-bold py-4 rounded-xl shadow-lg mt-4 ${type === 'utang' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                          Simpan {type === 'utang' ? 'Utang' : 'Piutang'}
-                       </button>
-                    </form>
+             return (
+               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
+                 <div className="flex items-center gap-3">
+                  <button onClick={() => navigate('debts', { tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <h2 className="text-xl font-bold text-slate-800">Catat {type === 'utang' ? 'Utang Baru' : 'Piutang Baru'}</h2>
                  </div>
-              )
-           }
+
+                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+                   <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                     <button type="button" onClick={() => setType('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Saya Berutang</button>
+                     <button type="button" onClick={() => setType('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'piutang' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Saya Beri Piutang</button>
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pihak/Orang</label>
+                     <input type="text" value={personName} onChange={e => setPersonName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="Cth: Budi, Bank X" />
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah (Rp)</label>
+                     <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="0" />
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tgl Dibuat</label>
+                        <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Estimasi Lunas</label>
+                        <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-rose-50 text-sm" />
+                      </div>
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-2">Foto Perjanjian / Bukti (Opsional)</label>
+                     <div className="flex flex-wrap gap-3">
+                         {agreementPhotos.map((p, i) => (
+                           <div key={i} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden group">
+                               <img src={p} alt="Preview" className="w-full h-full object-cover" />
+                               <button type="button" onClick={() => setAgreementPhotos(agreementPhotos.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-white/90 text-rose-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"><IconX /></button>
+                           </div>
+                         ))}
+                         <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-500 cursor-pointer">
+                           <IconCamera /><span className="text-[10px] font-medium mt-1">Upload</span>
+                           <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setAgreementPhotos, agreementPhotos)} />
+                         </label>
+                     </div>
+                   </div>
+
+                   <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">
+                     Simpan Data
+                   </button>
+                 </form>
+               </div>
+             );
+           };
 
            // 11. Debt Detail & Settlement
            const DebtDetail = () => {
-              const debt = debts.find(d => d.id === viewParams.id);
-              if (!debt) return <div>Data tidak ditemukan</div>;
+             const debt = debts.find(d => d.id === viewParams.id);
+             if (!debt) return <div>Data not found</div>;
 
-              const [isSettling, setIsSettling] = useState(false);
-              const [settleDate, setSettleDate] = useState(new Date().toISOString().split('T')[0]);
-              const [settlementPhotos, setSettlementPhotos] = useState([]);
+             const [isSettling, setIsSettling] = useState(false);
+             const [settledDate, setSettledDate] = useState(new Date().toISOString().split('T')[0]);
+             const [settlementPhotos, setSettlementPhotos] = useState([]);
 
-              const handleSettle = (e) => {
+             const handleSettle = () => {
+                const updatedDebt = { ...debt, status: 'paid', settledDate, settlementPhotos };
+                
+                const txType = debt.type === 'utang' ? 'out' : 'in';
+                const txDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Penerimaan Lunas dari ${debt.personName}`;
+                const newTx = {
+                  id: generateTxId(), type: txType, date: settledDate, desc: txDesc,
+                  amount: txType === 'in' ? parseInt(debt.amount) : null, price: txType === 'out' ? parseInt(debt.amount) : null, qty: 1
+                };
+
+                setDebts(debts.map(d => d.id === debt.id ? updatedDebt : d));
+                setTransactions([...transactions, newTx]);
+
+                if (BASE_URL) {
+                   const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
+                   fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
+                   fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+                }
+                setIsSettling(false);
+             };
+
+             return (
+               <div className="space-y-6 pb-20 sm:pb-6 fade-in max-w-lg mx-auto">
+                 <div className="flex items-center gap-3">
+                   <button onClick={() => navigate('debts', { tab: debt.type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                   <h2 className="text-xl font-bold text-slate-800">Detail {debt.type === 'utang' ? 'Utang' : 'Piutang'}</h2>
+                 </div>
+
+                 <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+                   <div className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                         <div className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider inline-block ${debt.status === 'active' ? 'bg-rose-50 text-rose-600' : 'bg-teal-50 text-teal-600'}`}>
+                            {debt.status === 'active' ? 'Belum Lunas' : 'Sudah Lunas'}
+                         </div>
+                         <div className="text-right">
+                           <p className="text-xs text-slate-400">Total Nominal</p>
+                           <p className="text-2xl font-bold text-slate-800">{formatIDR(debt.amount)}</p>
+                         </div>
+                      </div>
+                      
+                      <h2 className="text-xl font-bold text-slate-800 mb-4">{debt.personName}</h2>
+                      
+                      <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 text-sm">
+                         <div>
+                            <span className="block text-xs text-slate-400 mb-1">Tanggal Dibuat</span>
+                            <span className="font-medium text-slate-700">{formatDate(debt.date)}</span>
+                         </div>
+                         <div>
+                            <span className="block text-xs text-slate-400 mb-1">Jatuh Tempo</span>
+                            <span className="font-medium text-rose-600">{formatDate(debt.dueDate)}</span>
+                         </div>
+                         {debt.status === 'paid' && (
+                           <div className="col-span-2 mt-2">
+                              <span className="block text-xs text-slate-400 mb-1">Dilunasi Pada</span>
+                              <span className="font-bold text-teal-600">{formatDate(debt.settledDate)}</span>
+                           </div>
+                         )}
+                      </div>
+                   </div>
+                 </div>
+
+                 {debt.agreementPhotos && debt.agreementPhotos.length > 0 && (
+                    <PhotoGallery photos={debt.agreementPhotos} title="Foto Perjanjian / Bukti" />
+                 )}
+
+                 {debt.settlementPhotos && debt.settlementPhotos.length > 0 && (
+                    <PhotoGallery photos={debt.settlementPhotos} title="Foto Bukti Pelunasan" />
+                 )}
+
+                 {debt.status === 'active' && !isSettling && (
+                    <button onClick={() => setIsSettling(true)} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all">
+                       Tandai Sudah Lunas
+                    </button>
+                 )}
+
+                 {isSettling && (
+                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner mt-4">
+                       <h3 className="font-bold text-slate-800 mb-4">Konfirmasi Pelunasan</h3>
+                       
+                       <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Pelunasan</label>
+                            <input type="date" value={settledDate} onChange={e => setSettledDate(e.target.value)} required className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Upload Bukti Transfer / Pembayaran</label>
+                            <div className="flex flex-wrap gap-3">
+                                {settlementPhotos.map((p, i) => (
+                                  <div key={i} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden group">
+                                      <img src={p} alt="Preview" className="w-full h-full object-cover" />
+                                      <button type="button" onClick={() => setSettlementPhotos(settlementPhotos.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-white/90 text-rose-500 rounded-md"><IconX /></button>
+                                  </div>
+                                ))}
+                                <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-400 flex flex-col items-center justify-center text-slate-500 hover:text-teal-600 cursor-pointer bg-white">
+                                  <IconCamera /><span className="text-[10px] font-medium mt-1">Upload</span>
+                                  <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setSettlementPhotos, settlementPhotos)} />
+                                </label>
+                            </div>
+                          </div>
+                          <div className="flex gap-3 pt-2">
+                             <button onClick={() => setIsSettling(false)} className="flex-1 py-3 font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-100">Batal</button>
+                             <button onClick={handleSettle} className="flex-1 py-3 font-bold text-white bg-teal-600 rounded-xl shadow-lg hover:bg-teal-700">Simpan Pelunasan</button>
+                          </div>
+                       </div>
+                    </div>
+                 )}
+               </div>
+             );
+           };
+
+           // 12. Category Management
+           const CategoryList = () => {
+              return (
+                <div className="space-y-4 pb-20 sm:pb-6 fade-in max-w-md mx-auto">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-slate-800">Master Kategori</h2>
+                    <button onClick={() => navigate('add_category')} className="bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
+                      <IconPlus />
+                    </button>
+                  </div>
+                  <div className="grid gap-3">
+                    {categories.map(c => (
+                       <div key={c.id} onClick={() => navigate('add_category', { editId: c.id })} className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all flex justify-between items-center group">
+                          <span className="font-bold text-slate-700 group-hover:text-teal-700">{c.name}</span>
+                          <span className="text-slate-400 group-hover:text-teal-600"><IconEdit /></span>
+                       </div>
+                    ))}
+                  </div>
+                </div>
+              );
+           }
+
+           const AddCategory = () => {
+              const isEdit = !!viewParams.editId;
+              const existing = isEdit ? categories.find(c => c.id === viewParams.editId) : null;
+              const [name, setName] = useState(existing?.name || '');
+              const [confirmDelete, setConfirmDelete] = useState(false);
+
+              const handleSave = (e) => {
                  e.preventDefault();
-                 if(!confirm(`Yakin ingin melunasi ${debt.type} ini?`)) return;
-
-                 const updatedDebt = { ...debt, status: 'settled', settlementPhotos };
+                 if(!name) return;
+                 const newCat = { id: isEdit ? existing.id : generateCatId(), name };
+                 if(isEdit) setCategories(categories.map(c => c.id === existing.id ? newCat : c));
+                 else setCategories([...categories, newCat]);
                  
-                 // Transaksi pelunasan. Utang lunas -> Pengeluaran. Piutang lunas -> Pemasukan.
-                 const newTx = {
-                    id: generateTxId(),
-                    type: debt.type === 'utang' ? 'out' : 'in',
-                    date: settleDate,
-                    desc: debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Penerimaan Pelunasan Piutang dari ${debt.personName}`,
-                 };
-                 if (debt.type === 'utang') { newTx.price = debt.amount; } 
-                 else { newTx.amount = debt.amount; }
+                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newCat) }).catch(console.error);
+                 navigate('categories');
+              }
 
-                 setDebts(debts.map(d => d.id === debt.id ? updatedDebt : d));
-                 setTransactions([...transactions, newTx]);
-
-                 if(BASE_URL) {
-                    const apiDebt = { ...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos) };
-                    fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(apiDebt) }).catch(console.error);
-                    fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
-                 }
-                 setIsSettling(false);
+              const handleDelete = () => {
+                 setCategories(categories.filter(c => c.id !== existing.id));
+                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id}) }).catch(console.error);
+                 navigate('categories');
               }
 
               return (
                  <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                     <div className="flex items-center gap-3">
-                       <button onClick={() => navigate('debts')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
-                       <h2 className="text-xl font-bold text-slate-800">Detail {debt.type === 'utang' ? 'Utang' : 'Piutang'}</h2>
+                       <button onClick={() => navigate('categories')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                       <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
                     </div>
-
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                       <div className="flex justify-between items-start mb-4">
-                          <div>
-                             <div className="flex gap-2 items-center mb-2">
-                                <span className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 uppercase">{debt.id}</span>
-                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${debt.status === 'active' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                   {debt.status === 'active' ? 'Belum Lunas' : 'Sudah Lunas'}
-                                </span>
-                             </div>
-                             <h2 className="text-2xl font-bold text-slate-800">{debt.personName}</h2>
-                          </div>
+                    <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+                       <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Nama Kategori</label>
+                          <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" placeholder="Contoh: Belanja Bulanan" />
                        </div>
-                       
-                       <div className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 text-center">
-                          <p className="text-xs text-slate-500 font-bold uppercase mb-1">Total {debt.type}</p>
-                          <p className={`text-3xl font-bold ${debt.type === 'utang' ? 'text-rose-600' : 'text-indigo-600'}`}>{formatIDR(debt.amount)}</p>
-                       </div>
-
-                       <div className="grid grid-cols-2 gap-4 text-sm border-t border-slate-50 pt-4">
-                          <div>
-                             <span className="block text-xs text-slate-400 mb-0.5">Tanggal Dibuat</span>
-                             <span className="font-semibold text-slate-700">{formatDate(debt.date)}</span>
-                          </div>
-                          <div>
-                             <span className="block text-xs text-slate-400 mb-0.5">Estimasi Lunas</span>
-                             <span className="font-semibold text-slate-700">{formatDate(debt.dueDate)}</span>
-                          </div>
-                       </div>
-                    </div>
-
-                    <PhotoGallery photos={debt.agreementPhotos} title="Foto Perjanjian / Bukti Awal" />
-                    
-                    {debt.status === 'settled' && (
-                       <PhotoGallery photos={debt.settlementPhotos} title="Bukti Pelunasan" />
-                    )}
-
-                    {debt.status === 'active' && !isSettling && (
-                       <button onClick={() => setIsSettling(true)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all">
-                          Konfirmasi Pelunasan
-                       </button>
-                    )}
-
-                    {isSettling && (
-                       <form onSubmit={handleSettle} className="bg-emerald-50 border border-emerald-200 p-5 rounded-3xl space-y-4 fade-in">
-                          <h3 className="font-bold text-emerald-800">Form Pelunasan</h3>
-                          <div>
-                             <label className="block text-sm font-medium text-emerald-900 mb-1">Tanggal Lunas</label>
-                             <input type="date" value={settleDate} onChange={e => setSettleDate(e.target.value)} required className="w-full border border-emerald-200 rounded-xl px-4 py-3 bg-white" />
-                          </div>
-                          <div>
-                             <label className="block text-sm font-medium text-emerald-900 mb-2">Upload Bukti Pelunasan (Opsional)</label>
-                             <div className="flex flex-wrap gap-3">
-                                {settlementPhotos.map((p, i) => (
-                                   <div key={i} className="relative w-16 h-16 rounded-xl overflow-hidden">
-                                      <img src={p} alt="Preview" className="w-full h-full object-cover" />
-                                      <button type="button" onClick={() => setSettlementPhotos(settlementPhotos.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 p-1 bg-white/90 text-rose-500 rounded-bl-md"><IconX /></button>
-                                   </div>
-                                ))}
-                                <label className="w-16 h-16 rounded-xl border-2 border-dashed border-emerald-300 flex flex-col items-center justify-center text-emerald-600 hover:bg-emerald-100 cursor-pointer">
-                                   <IconCamera />
-                                   <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setSettlementPhotos, settlementPhotos)} />
-                                </label>
-                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                             <button type="button" onClick={() => setIsSettling(false)} className="flex-1 bg-white border border-slate-200 text-slate-600 font-bold py-3 rounded-xl">Batal</button>
-                             <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md">Simpan Lunas</button>
-                          </div>
-                       </form>
-                    )}
+                       <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">Simpan Kategori</button>
+                       {isEdit && (
+                          <button type="button" onClick={() => confirmDelete ? handleDelete() : setConfirmDelete(true)} onMouseLeave={() => setConfirmDelete(false)} className={`w-full font-bold py-4 rounded-xl shadow-sm transition-all mt-3 ${confirmDelete ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600'}`}>
+                             {confirmDelete ? 'Yakin Hapus Kategori?' : 'Hapus Kategori'}
+                          </button>
+                       )}
+                    </form>
                  </div>
               )
            }
@@ -1551,8 +1581,7 @@
           // MAIN RENDER
           return (
             <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-              
-              {/* Top Header / Desktop Sidebar substitute */}
+              {/* Desktop Header */}
               <header className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm hidden sm:block">
                 <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-teal-600 font-bold text-xl">
@@ -1562,56 +1591,54 @@
                     <button onClick={() => navigate('dashboard')} className={`font-medium transition-colors ${currentView === 'dashboard' ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Dashboard</button>
                     <button onClick={() => navigate('materials')} className={`font-medium transition-colors ${['materials','material_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Materials</button>
                     <button onClick={() => navigate('places')} className={`font-medium transition-colors ${['places','place_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Vendors</button>
-                    <button onClick={() => navigate('debts')} className={`font-medium transition-colors ${['debts','debt_detail','add_debt'].includes(currentView) ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Utang/Piutang</button>
+                    <button onClick={() => navigate('categories')} className={`font-medium transition-colors ${['categories','add_category'].includes(currentView) ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Kategori</button>
+                    <button onClick={() => navigate('debts')} className={`font-medium transition-colors ${['debts', 'add_debt', 'debt_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Utang/Piutang</button>
                   </nav>
                 </div>
               </header>
 
-              {/* Mobile Top Header */}
+              {/* Mobile Header */}
               <header className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm sm:hidden">
                 <div className="px-4 h-14 flex items-center justify-center relative">
-                  <div className="flex items-center gap-2 text-teal-600 font-bold text-lg">
-                    <IconWallet /> FlowMaster
-                  </div>
+                  <div className="flex items-center gap-2 text-teal-600 font-bold text-lg"><IconWallet /> FlowMaster</div>
                 </div>
               </header>
 
-              {/* Main Content Area */}
+              {/* Main Content */}
               <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 min-h-[calc(100vh-140px)]">
                 {currentView === 'dashboard' && <Dashboard />}
                 {currentView === 'transaction_list' && <TransactionList />}
                 {currentView === 'materials' && <MaterialList />}
                 {currentView === 'material_detail' && <MaterialDetail />}
                 {currentView === 'places' && <PlaceList />}
+                {currentView === 'place_detail' && <PlaceDetail />}
                 {currentView === 'add_expense' && <AddExpense />}
                 {currentView === 'add_income' && <AddIncome />}
                 {currentView === 'add_material' && <AddMaterial />}
                 {currentView === 'add_place' && <AddPlace />}
-                {currentView === 'place_detail' && <PlaceDetail />}
-                
-                {/* Utang/Piutang Views */}
+                {currentView === 'categories' && <CategoryList />}
+                {currentView === 'add_category' && <AddCategory />}
                 {currentView === 'debts' && <DebtList />}
                 {currentView === 'add_debt' && <AddDebt />}
                 {currentView === 'debt_detail' && <DebtDetail />}
               </main>
 
-              {/* Mobile Bottom Navigation */}
-              <nav className="sm:hidden fixed bottom-0 w-full bg-white border-t border-slate-100 px-2 py-3 grid grid-cols-4 z-40 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+              {/* Mobile Bottom Nav */}
+              <nav className="sm:hidden fixed bottom-0 w-full bg-white border-t border-slate-100 px-1 py-3 grid grid-cols-5 z-40 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
                 <button onClick={() => navigate('dashboard')} className={`flex flex-col items-center gap-1 ${currentView === 'dashboard' ? 'text-teal-600' : 'text-slate-400'}`}>
-                   <IconWallet />
-                   <span className="text-[10px] font-medium">Home</span>
+                   <IconWallet /><span className="text-[10px] font-medium">Home</span>
                 </button>
                 <button onClick={() => navigate('materials')} className={`flex flex-col items-center gap-1 ${['materials', 'material_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
-                   <IconBox />
-                   <span className="text-[10px] font-medium">Material</span>
+                   <IconBox /><span className="text-[10px] font-medium">Material</span>
                 </button>
                 <button onClick={() => navigate('places')} className={`flex flex-col items-center gap-1 ${['places', 'place_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
-                   <IconMapPin />
-                   <span className="text-[10px] font-medium">Vendor</span>
+                   <IconMapPin /><span className="text-[10px] font-medium">Vendor</span>
                 </button>
-                <button onClick={() => navigate('debts')} className={`flex flex-col items-center gap-1 ${['debts', 'debt_detail', 'add_debt'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
-                   <IconFileText />
-                   <span className="text-[10px] font-medium">Utang</span>
+                <button onClick={() => navigate('categories')} className={`flex flex-col items-center gap-1 ${['categories', 'add_category'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
+                   <IconTag /><span className="text-[10px] font-medium">Kategori</span>
+                </button>
+                <button onClick={() => navigate('debts')} className={`flex flex-col items-center gap-1 ${['debts', 'add_debt', 'debt_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
+                   <IconFileText /><span className="text-[10px] font-medium">Utang</span>
                 </button>
               </nav>
 
