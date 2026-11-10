@@ -231,9 +231,10 @@
              if (!BASE_URL) {
                  // Fallback if API is empty
                  setCategories([
-                    {id: 'CAT-1', name: 'Motor'}, {id: 'CAT-2', name: 'Bensin'}, 
-                    {id: 'CAT-3', name: 'Hobby'}, {id: 'CAT-4', name: 'Internet'}, 
-                    {id: 'CAT-5', name: 'Jajan'}, {id: 'CAT-6', name: 'Handphone'}
+                    {id: 'CAT-1', name: 'Motor', type: 'out'}, {id: 'CAT-2', name: 'Bensin', type: 'out'}, 
+                    {id: 'CAT-3', name: 'Hobby', type: 'out'}, {id: 'CAT-4', name: 'Internet', type: 'out'}, 
+                    {id: 'CAT-5', name: 'Jajan', type: 'out'}, {id: 'CAT-6', name: 'Handphone', type: 'out'},
+                    {id: 'CAT-7', name: 'Gaji Utama', type: 'in'}, {id: 'CAT-8', name: 'Bonus Tambahan', type: 'in'}
                  ]);
                  return;
              }
@@ -251,7 +252,12 @@
                  fetchSafe('categories'), fetchSafe('materials'), fetchSafe('places'), fetchSafe('transactions'), fetchSafe('debts')
              ]).then(([c, m, p, t, d]) => {
                  if (c?.success && c.data.length > 0) setCategories(c.data);
-                 else setCategories([{id: 'CAT-1', name: 'Motor'}, {id: 'CAT-2', name: 'Bensin'}, {id: 'CAT-3', name: 'Hobby'}, {id: 'CAT-4', name: 'Internet'}, {id: 'CAT-5', name: 'Jajan'}, {id: 'CAT-6', name: 'Handphone'}]);
+                 else setCategories([
+                    {id: 'CAT-1', name: 'Motor', type: 'out'}, {id: 'CAT-2', name: 'Bensin', type: 'out'}, 
+                    {id: 'CAT-3', name: 'Hobby', type: 'out'}, {id: 'CAT-4', name: 'Internet', type: 'out'}, 
+                    {id: 'CAT-5', name: 'Jajan', type: 'out'}, {id: 'CAT-6', name: 'Handphone', type: 'out'},
+                    {id: 'CAT-7', name: 'Gaji Utama', type: 'in'}, {id: 'CAT-8', name: 'Bonus Tambahan', type: 'in'}
+                 ]);
 
                  if (m?.success) setMaterials(m.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
                  if (p?.success) setPlaces(p.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
@@ -319,7 +325,7 @@
                          </button>
                       ) : (tx.desc || 'Transaksi')}
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {isOut && mat ? `• ${mat.category}` : ''}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat ? `• ${mat.category}` : ''}</p>
                     {tx.note && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
                   </div>
                 </div>
@@ -976,12 +982,16 @@
           const AddMaterial = () => {
             const isEdit = !!viewParams.editId;
             const existing = isEdit ? materials.find(m => m.id === viewParams.editId) : null;
+            
+            const outCats = categories.filter(c => c.type === 'out');
+            const inCats = categories.filter(c => c.type === 'in');
+
             const [flowType, setFlowType] = useState(existing?.flowType || 'out');
             const [desc, setDesc] = useState(existing?.desc || '');
             const [partNum, setPartNum] = useState(existing?.partNum || '');
             const [brand, setBrand] = useState(existing?.brand || '');
             const [unit, setUnit] = useState(existing?.unit || 'Pcs');
-            const [category, setCategory] = useState(existing?.category || (categories[0]?.name || 'Motor'));
+            const [category, setCategory] = useState(existing?.category || (flowType === 'out' ? (outCats[0]?.name || '') : (inCats[0]?.name || '')));
             const [amount, setAmount] = useState(existing?.amount || '');
             const [source, setSource] = useState(existing?.source || '');
             const [photos, setPhotos] = useState(existing?.photos || []);
@@ -989,9 +999,9 @@
             const handleSave = (e) => {
               e.preventDefault();
               const matData = {
-                flowType, desc, 
+                flowType, desc, category,
                 partNum: flowType === 'out' ? partNum : '', brand: flowType === 'out' ? brand : '', 
-                unit: flowType === 'out' ? unit : '', category: flowType === 'out' ? category : 'Income',
+                unit: flowType === 'out' ? unit : '',
                 amount: flowType === 'in' ? parseInt(amount) : undefined, source: flowType === 'in' ? source : undefined,
                 photos: flowType === 'out' ? JSON.stringify(photos) : "[]"
               };
@@ -1001,13 +1011,14 @@
                 if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, ...matData}) }).catch(console.error);
                 navigate('material_detail', { id: existing.id });
               } else {
-                const newId = generateMaterialId(flowType === 'in' ? 'Income' : category);
+                const newId = generateMaterialId();
                 const newMat = { id: newId, ...matData, photos };
                 setMaterials([...materials, newMat]);
                 if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...newMat, photos: matData.photos}) }).catch(console.error);
                 navigate(viewParams.returnTo || 'materials', { prefilledMaterial: newId });
               }
             };
+
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
@@ -1017,23 +1028,23 @@
                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
                    {!isEdit && (
                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
-                       <button type="button" onClick={() => setFlowType('out')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${flowType === 'out' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pengeluaran</button>
-                       <button type="button" onClick={() => setFlowType('in')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${flowType === 'in' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pemasukan</button>
+                       <button type="button" onClick={() => { setFlowType('out'); setCategory(outCats[0]?.name || ''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${flowType === 'out' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pengeluaran</button>
+                       <button type="button" onClick={() => { setFlowType('in'); setCategory(inCats[0]?.name || ''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${flowType === 'in' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pemasukan</button>
                      </div>
                    )}
                    <div className="bg-slate-50 p-4 rounded-2xl mb-2 flex items-center justify-between border border-slate-100">
                      <span className="text-sm font-medium text-slate-500">Kode ID:</span>
-                     <span className={`font-bold ${flowType === 'in' ? 'text-emerald-700' : 'text-teal-700'}`}>{isEdit ? existing.id : generateMaterialId(flowType === 'in' ? 'Income' : category)}</span>
+                     <span className={`font-bold ${flowType === 'in' ? 'text-emerald-700' : 'text-teal-700'}`}>{isEdit ? existing.id : generateMaterialId()}</span>
                    </div>
                   {flowType === 'out' ? (
                     <>
                       <div>
                         <div className="flex justify-between items-center mb-1">
-                           <label className="block text-sm font-medium text-slate-700">Kategori</label>
+                           <label className="block text-sm font-medium text-slate-700">Kategori Pengeluaran</label>
                            <button type="button" onClick={() => navigate('categories')} className="text-xs text-teal-600 font-semibold hover:underline">+ Kelola</button>
                         </div>
                         <select value={category} onChange={e => setCategory(e.target.value)} disabled={isEdit} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50 disabled:opacity-70">
-                          {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                          {outCats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                         </select>
                       </div>
                       <div>
@@ -1072,7 +1083,16 @@
                     </>
                   ) : (
                     <>
-                       <div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                           <label className="block text-sm font-medium text-slate-700">Kategori Pemasukan</label>
+                           <button type="button" onClick={() => navigate('categories')} className="text-xs text-emerald-600 font-semibold hover:underline">+ Kelola</button>
+                        </div>
+                        <select value={category} onChange={e => setCategory(e.target.value)} disabled={isEdit} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50 disabled:opacity-70">
+                          {inCats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pemasukan</label>
                         <input type="text" value={desc} onChange={e => setDesc(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" />
                       </div>
@@ -1512,17 +1532,27 @@
 
            // 12. Category Management
            const CategoryList = () => {
+              const [tab, setTab] = useState('out'); // 'out' or 'in'
+              const filteredCats = categories.filter(c => c.type === tab);
+              
               return (
                 <div className="space-y-4 pb-20 sm:pb-6 fade-in max-w-md mx-auto">
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-slate-800">Master Kategori</h2>
-                    <button onClick={() => navigate('add_category')} className="bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
+                    <button onClick={() => navigate('add_category', { type: tab })} className="bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
                       <IconPlus />
                     </button>
                   </div>
+
+                  <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                     <button onClick={() => setTab('out')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'out' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pengeluaran</button>
+                     <button onClick={() => setTab('in')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'in' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pemasukan</button>
+                  </div>
+
                   <div className="grid gap-3">
-                    {categories.map(c => (
-                       <div key={c.id} onClick={() => navigate('add_category', { editId: c.id })} className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all flex justify-between items-center group">
+                    {filteredCats.length === 0 && <div className="text-center text-sm text-slate-400 p-4">Belum ada kategori.</div>}
+                    {filteredCats.map(c => (
+                       <div key={c.id} onClick={() => navigate('add_category', { editId: c.id, type: c.type })} className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all flex justify-between items-center group">
                           <span className="font-bold text-slate-700 group-hover:text-teal-700">{c.name}</span>
                           <span className="text-slate-400 group-hover:text-teal-600"><IconEdit /></span>
                        </div>
@@ -1530,6 +1560,56 @@
                   </div>
                 </div>
               );
+           }
+
+           const AddCategory = () => {
+              const isEdit = !!viewParams.editId;
+              const existing = isEdit ? categories.find(c => c.id === viewParams.editId) : null;
+              const [type, setType] = useState(existing?.type || viewParams.type || 'out');
+              const [name, setName] = useState(existing?.name || '');
+              const [confirmDelete, setConfirmDelete] = useState(false);
+
+              const handleSave = (e) => {
+                 e.preventDefault();
+                 if(!name) return;
+                 const newCat = { id: isEdit ? existing.id : generateCatId(), name, type };
+                 if(isEdit) setCategories(categories.map(c => c.id === existing.id ? newCat : c));
+                 else setCategories([...categories, newCat]);
+                 
+                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newCat) }).catch(console.error);
+                 navigate('categories');
+              }
+
+              const handleDelete = () => {
+                 setCategories(categories.filter(c => c.id !== existing.id));
+                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id}) }).catch(console.error);
+                 navigate('categories');
+              }
+
+              return (
+                 <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
+                    <div className="flex items-center gap-3">
+                       <button onClick={() => navigate('categories')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                       <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
+                    </div>
+                    <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                          <button type="button" onClick={() => setType('out')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'out' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pengeluaran</button>
+                          <button type="button" onClick={() => setType('in')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'in' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Pemasukan</button>
+                       </div>
+                       <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Nama Kategori</label>
+                          <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" placeholder="Contoh: Belanja Bulanan" />
+                       </div>
+                       <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">Simpan Kategori</button>
+                       {isEdit && (
+                          <button type="button" onClick={() => confirmDelete ? handleDelete() : setConfirmDelete(true)} onMouseLeave={() => setConfirmDelete(false)} className={`w-full font-bold py-4 rounded-xl shadow-sm transition-all mt-3 ${confirmDelete ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600'}`}>
+                             {confirmDelete ? 'Yakin Hapus Kategori?' : 'Hapus Kategori'}
+                          </button>
+                       )}
+                    </form>
+                 </div>
+              )
            }
 
            const AddCategory = () => {
