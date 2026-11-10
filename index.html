@@ -319,6 +319,11 @@
           const renderTxItem = (tx) => {
             const isOut = tx.type === 'out';
             const mat = materials.find(m => m.id === tx.materialId);
+            
+            // Logika cerdas untuk membaca nama transaksi Utang/Piutang
+            const txTitle = mat ? (mat.desc || 'Tanpa Nama') : (tx.desc || tx.note || 'Transaksi');
+            const showNote = tx.note && tx.note !== txTitle; // Sembunyikan note jika isinya sama dengan judul
+
             return (
               <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-3">
@@ -329,12 +334,14 @@
                     <p className="font-semibold text-slate-800 text-sm whitespace-nowrap text-ellipsis overflow-hidden">
                       {mat ? (
                          <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
-                            {mat.desc || 'Tanpa Nama'}
+                            {txTitle}
                          </button>
-                      ) : (tx.desc || 'Transaksi')}
+                      ) : (
+                         txTitle
+                      )}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat ? `• ${mat.category || ''}` : ''}</p>
-                    {tx.note && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
+                    {showNote && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
                   </div>
                 </div>
                 <div className={`font-semibold whitespace-nowrap flex-shrink-0 ml-2 ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
@@ -1384,11 +1391,13 @@
                } else {
                  const txType = type === 'utang' ? 'in' : 'out';
                  const adminAmt = parseInt(adminFee) || 0;
-                 const txDesc = type === 'utang' ? `Utang ke ${personName}` : `Piutang ke ${personName}`;
-                 const finalDesc = (type === 'piutang' && adminAmt > 0) ? `${txDesc} (+Admin ${formatIDR(adminAmt)})` : txDesc;
+                 
+                 // FORMAT NAMA SESUAI PERMINTAAN
+                 const baseDesc = type === 'utang' ? `Utang ke ${personName}` : `Piutang ke ${personName}`;
+                 const finalDesc = (type === 'piutang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
 
                  const newTx = {
-                   id: generateTxId(), type: txType, date, desc: finalDesc,
+                   id: generateTxId(), type: txType, date, desc: finalDesc, note: finalDesc,
                    amount: txType === 'in' ? parseInt(amount) : null, 
                    price: txType === 'out' ? parseInt(amount) + adminAmt : null, 
                    qty: 1
@@ -1498,11 +1507,13 @@
                 
                 const txType = debt.type === 'utang' ? 'out' : 'in';
                 const adminAmt = parseInt(adminFee) || 0;
-                const txDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Pelunasan Piutang oleh ${debt.personName}`;
-                const finalDesc = (debt.type === 'utang' && adminAmt > 0) ? `${txDesc} (+Admin ${formatIDR(adminAmt)})` : txDesc;
+                
+                // FORMAT NAMA PELUNASAN
+                const baseDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Pelunasan Piutang oleh ${debt.personName}`;
+                const finalDesc = (debt.type === 'utang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
 
                 const newTx = {
-                  id: generateTxId(), type: txType, date: settledDate, desc: finalDesc,
+                  id: generateTxId(), type: txType, date: settledDate, desc: finalDesc, note: finalDesc,
                   amount: txType === 'in' ? parseInt(debt.amount) : null, 
                   price: txType === 'out' ? parseInt(debt.amount) + adminAmt : null, 
                   qty: 1
