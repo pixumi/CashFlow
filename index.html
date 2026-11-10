@@ -271,9 +271,9 @@
                  fetch(`${API_URL}/places`).then(r => r.json()),
                  fetch(`${API_URL}/transactions`).then(r => r.json())
              ]).then(([m, p, t]) => {
-                 if (m?.success && m.data.length > 0) setMaterials(m.data);
-                 if (p?.success && p.data.length > 0) setPlaces(p.data);
-                 if (t?.success && t.data.length > 0) setTransactions(t.data);
+                 if (m?.success) setMaterials(m.data);
+                 if (p?.success) setPlaces(p.data);
+                 if (t?.success) setTransactions(t.data);
              }).catch(err => console.error("Error loading D1 data:", err));
           }, []);
 
