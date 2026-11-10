@@ -36,6 +36,7 @@
         // Masukkan URL Worker Anda di dalam tanda kutip di bawah ini.
         // Contoh: const API_URL = "https://api-cashflow.team-id.workers.dev/";
         const API_URL = "";
+        const BASE_URL = API_URL ? API_URL.trim().replace(/\/$/, "") : "";
 
         // Mengambil fungsi bawaan React dari global window
         const { useState, useEffect, useMemo } = React;
@@ -245,36 +246,45 @@
         function CashFlowApp() {
           // --- STATE MANAGEMENT ---
           // Initial Mock Data to populate the application
-          const [materials, setMaterials] = useState([
+          const mockMaterials = [
             { id: 'MTR-001', desc: 'Oli Mesin Matic', partNum: '10W-40', brand: 'Yamalube', unit: 'Botol', category: 'Motor', photos: [], flowType: 'out' },
             { id: 'BSN-001', desc: 'Pertamax', partNum: '-', brand: 'Pertamina', unit: 'Liter', category: 'Bensin', photos: [], flowType: 'out' },
             { id: 'INT-001', desc: 'Paket Data 50GB', partNum: 'PKG-50', brand: 'Telkomsel', unit: 'Bulan', category: 'Internet', photos: [], flowType: 'out' }
-          ]);
+          ];
 
-          const [places, setPlaces] = useState([
+          const mockPlaces = [
             { id: 'PLC-001', name: 'Bengkel Resmi Yamaha', address: 'Jl. Ahmad Yani No 45, Kota', mapLink: 'https://maps.google.com', photos: [] },
             { id: 'PLC-002', name: 'SPBU Pertamina 34', address: 'Jl. Merdeka No 1', mapLink: 'https://maps.google.com', photos: [] }
-          ]);
+          ];
 
-          const [transactions, setTransactions] = useState([
+          const mockTransactions = [
             { id: 'TX-001', type: 'in', date: '2026-11-01', desc: 'Gaji Bulanan', amount: 8000000 },
             { id: 'TX-002', type: 'out', date: '2026-11-02', materialId: 'MTR-001', price: 55000, placeId: 'PLC-001' },
             { id: 'TX-003', type: 'out', date: '2026-11-05', materialId: 'BSN-001', price: 35000, placeId: 'PLC-002' },
             { id: 'TX-004', type: 'out', date: '2026-11-08', materialId: 'MTR-001', price: 57000, placeId: 'PLC-001' }
-          ]);
+          ];
+
+          const [materials, setMaterials] = useState(BASE_URL ? [] : mockMaterials);
+          const [places, setPlaces] = useState(BASE_URL ? [] : mockPlaces);
+          const [transactions, setTransactions] = useState(BASE_URL ? [] : mockTransactions);
 
           // Efek untuk memuat data dari Cloudflare D1 saat aplikasi pertama kali dibuka (jika API_URL diisi)
           useEffect(() => {
-             if (!API_URL) return;
+             if (!BASE_URL) return;
              Promise.all([
-                 fetch(`${API_URL}/materials`).then(r => r.json()),
-                 fetch(`${API_URL}/places`).then(r => r.json()),
-                 fetch(`${API_URL}/transactions`).then(r => r.json())
+                 fetch(`${BASE_URL}/materials`).then(r => r.json()),
+                 fetch(`${BASE_URL}/places`).then(r => r.json()),
+                 fetch(`${BASE_URL}/transactions`).then(r => r.json())
              ]).then(([m, p, t]) => {
                  if (m?.success) setMaterials(m.data);
                  if (p?.success) setPlaces(p.data);
                  if (t?.success) setTransactions(t.data);
-             }).catch(err => console.error("Error loading D1 data:", err));
+                 
+                 // Lapor ke console browser jika database error
+                 if (m?.error || p?.error || t?.error) {
+                     console.error("Kesalahan Database D1:", {m: m?.error, p: p?.error, t: t?.error});
+                 }
+             }).catch(err => console.error("Error memuat API:", err));
           }, []);
 
           // Navigation State
@@ -859,7 +869,7 @@
               setTransactions([...transactions, newTx]);
               
               // Sinkronisasi background ke Cloudflare D1
-              if (API_URL) fetch(`${API_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+              if (BASE_URL) fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
 
               navigate('dashboard');
             };
@@ -1050,13 +1060,13 @@
 
               if (isEdit) {
                 setMaterials(materials.map(m => m.id === existing.id ? { ...m, ...matData } : m));
-                if (API_URL) fetch(`${API_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, ...matData}) }).catch(console.error);
+                if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, ...matData}) }).catch(console.error);
                 navigate('material_detail', { id: existing.id });
               } else {
                 const newId = generateMaterialId(flowType === 'in' ? 'Income' : category);
                 const newMat = { id: newId, ...matData };
                 setMaterials([...materials, newMat]);
-                if (API_URL) fetch(`${API_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newMat) }).catch(console.error);
+                if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newMat) }).catch(console.error);
                 
                 if (viewParams.returnTo) {
                   navigate(viewParams.returnTo, { prefilledMaterial: newId });
@@ -1178,13 +1188,13 @@
               
               if (isEdit) {
                  setPlaces(places.map(p => p.id === existing.id ? { ...p, name, address, mapLink, photos } : p));
-                 if (API_URL) fetch(`${API_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, name, address, mapLink, photos}) }).catch(console.error);
+                 if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, name, address, mapLink, photos}) }).catch(console.error);
                  navigate('place_detail', { id: existing.id });
               } else {
                  const newId = generatePlaceId();
                  const newPlace = { id: newId, name, address, mapLink, photos };
                  setPlaces([...places, newPlace]);
-                 if (API_URL) fetch(`${API_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newPlace) }).catch(console.error);
+                 if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newPlace) }).catch(console.error);
                  
                  if (viewParams.returnTo) {
                    navigate(viewParams.returnTo, { prefilledPlace: newId });
@@ -1279,7 +1289,7 @@
               setTransactions([...transactions, newTx]);
               
               // Sinkronisasi background ke Cloudflare D1
-              if (API_URL) fetch(`${API_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+              if (BASE_URL) fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
 
               navigate('dashboard');
             };
