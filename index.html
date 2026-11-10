@@ -320,9 +320,9 @@
             const isOut = tx.type === 'out';
             const mat = materials.find(m => m.id === tx.materialId);
             
-            // Logika cerdas untuk membaca nama transaksi Utang/Piutang
-            const txTitle = mat ? (mat.desc || 'Tanpa Nama') : (tx.desc || tx.note || 'Transaksi');
-            const showNote = tx.note && tx.note !== txTitle; // Sembunyikan note jika isinya sama dengan judul
+            // Logika prioritas nama transaksi Utang/Piutang
+            const txTitle = mat ? (mat.desc || 'Tanpa Nama') : (tx.note || tx.desc || 'Transaksi');
+            const showNote = tx.note && tx.note !== txTitle; // Sembunyikan catatan jika isinya sama dengan judul
 
             return (
               <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
@@ -340,12 +340,12 @@
                          txTitle
                       )}
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat ? `• ${mat.category || ''}` : ''}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat && mat.category ? `• ${mat.category}` : ''}</p>
                     {showNote && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
                   </div>
                 </div>
                 <div className={`font-semibold whitespace-nowrap flex-shrink-0 ml-2 ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
-                  {isOut ? '-' : '+'}{formatIDR(isOut ? (tx.price || tx.amount) : (tx.amount || 0))}
+                  {isOut ? '-' : '+'}{formatIDR(isOut ? (tx.price || tx.amount || 0) : (tx.amount || 0))}
                 </div>
               </div>
             );
@@ -1356,134 +1356,6 @@
            };
 
            // 10. Add Debt
-           const AddDebt = () => {
-             const isEdit = !!viewParams.editId;
-             const existing = isEdit ? debts.find(d => d.id === viewParams.editId) : null;
-
-             const [type, setType] = useState(existing?.type || viewParams.type || 'utang');
-             const [personName, setPersonName] = useState(existing?.personName || '');
-             const [amount, setAmount] = useState(existing?.amount || '');
-             const [adminFee, setAdminFee] = useState('');
-             const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
-             const [dueDate, setDueDate] = useState(existing?.dueDate || '');
-             const [agreementPhotos, setAgreementPhotos] = useState(existing?.agreementPhotos || []);
-
-             const handleSave = (e) => {
-               e.preventDefault();
-               if (!personName || !amount || !dueDate) return;
-               
-               const newDebt = {
-                 id: isEdit ? existing.id : generateDebtId(), 
-                 type, personName, amount: parseInt(amount), date, dueDate, 
-                 status: existing ? existing.status : 'active',
-                 agreementPhotos, 
-                 settlementPhotos: existing ? existing.settlementPhotos : [], 
-                 settledDate: existing ? existing.settledDate : null
-               };
-
-               if (isEdit) {
-                 setDebts(debts.map(d => d.id === existing.id ? newDebt : d));
-                 if (BASE_URL) {
-                    const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(newDebt.agreementPhotos), settlementPhotos: JSON.stringify(newDebt.settlementPhotos)};
-                    fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
-                 }
-                 navigate('debt_detail', { id: existing.id });
-               } else {
-                 const txType = type === 'utang' ? 'in' : 'out';
-                 const adminAmt = parseInt(adminFee) || 0;
-                 
-                 // FORMAT NAMA SESUAI PERMINTAAN
-                 const baseDesc = type === 'utang' ? `Utang ke ${personName}` : `Piutang ke ${personName}`;
-                 const finalDesc = (type === 'piutang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
-
-                 const newTx = {
-                   id: generateTxId(), type: txType, date, desc: finalDesc, note: finalDesc,
-                   amount: txType === 'in' ? parseInt(amount) : null, 
-                   price: txType === 'out' ? parseInt(amount) + adminAmt : null, 
-                   qty: 1
-                 };
-
-                 setDebts([...debts, newDebt]);
-                 setTransactions([...transactions, newTx]);
-
-                 if (BASE_URL) {
-                    const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(newDebt.agreementPhotos), settlementPhotos: "[]"};
-                    fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
-                    fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
-                 }
-                 navigate('debts', { tab: type });
-               }
-             };
-
-             return (
-               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
-                 <div className="flex items-center gap-3">
-                  <button onClick={() => navigate(isEdit ? 'debt_detail' : 'debts', isEdit ? { id: existing.id } : { tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
-                  <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Data' : (type === 'utang' ? 'Catat Utang Baru' : 'Catat Piutang Baru')}</h2>
-                 </div>
-
-                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                   {!isEdit && (
-                     <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
-                       <button type="button" onClick={() => setType('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Saya Berutang</button>
-                       <button type="button" onClick={() => setType('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'piutang' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Saya Beri Piutang</button>
-                     </div>
-                   )}
-
-                   <div>
-                     <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pihak/Orang</label>
-                     <input type="text" value={personName} onChange={e => setPersonName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="Cth: Budi, Bank X" />
-                   </div>
-
-                   <div>
-                     <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah (Rp)</label>
-                     <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="0" />
-                   </div>
-
-                   {type === 'piutang' && (
-                     <div>
-                       <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Admin (Opsional)</label>
-                       <div className="relative">
-                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
-                         <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="0" />
-                       </div>
-                     </div>
-                   )}
-
-                   <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Tgl Dibuat</label>
-                        <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Estimasi Lunas</label>
-                        <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-rose-50 text-sm" />
-                      </div>
-                   </div>
-
-                   <div>
-                     <label className="block text-sm font-medium text-slate-700 mb-2">Foto Perjanjian / Bukti (Opsional)</label>
-                     <div className="flex flex-wrap gap-3">
-                         {agreementPhotos.map((p, i) => (
-                           <div key={i} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden group">
-                               <img src={p} alt="Preview" className="w-full h-full object-cover" />
-                               <button type="button" onClick={() => setAgreementPhotos(agreementPhotos.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-white/90 text-rose-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"><IconX /></button>
-                           </div>
-                         ))}
-                         <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-500 cursor-pointer">
-                           <IconCamera /><span className="text-[10px] font-medium mt-1">Upload</span>
-                           <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setAgreementPhotos, agreementPhotos)} />
-                         </label>
-                     </div>
-                   </div>
-
-                   <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">
-                     Simpan Data
-                   </button>
-                 </form>
-               </div>
-             );
-           };
 
            // 11. Debt Detail & Settlement
            const DebtDetail = () => {
