@@ -32,6 +32,11 @@
 
     <!-- Script aplikasi dengan tipe text/babel -->
     <script type="text/babel">
+        // --- KONFIGURASI DATABASE API CLOUDFLARE D1 ---
+        // Masukkan URL Worker Anda di dalam tanda kutip di bawah ini.
+        // Contoh: const API_URL = "https://api-cashflow.team-id.workers.dev/";
+        const API_URL = "";
+
         // Mengambil fungsi bawaan React dari global window
         const { useState, useEffect, useMemo } = React;
 
@@ -258,6 +263,20 @@
             { id: 'TX-004', type: 'out', date: '2026-11-08', materialId: 'MTR-001', price: 57000, placeId: 'PLC-001' }
           ]);
 
+          // Efek untuk memuat data dari Cloudflare D1 saat aplikasi pertama kali dibuka (jika API_URL diisi)
+          useEffect(() => {
+             if (!API_URL) return;
+             Promise.all([
+                 fetch(`${API_URL}/materials`).then(r => r.json()),
+                 fetch(`${API_URL}/places`).then(r => r.json()),
+                 fetch(`${API_URL}/transactions`).then(r => r.json())
+             ]).then(([m, p, t]) => {
+                 if (m?.success && m.data.length > 0) setMaterials(m.data);
+                 if (p?.success && p.data.length > 0) setPlaces(p.data);
+                 if (t?.success && t.data.length > 0) setTransactions(t.data);
+             }).catch(err => console.error("Error loading D1 data:", err));
+          }, []);
+
           // Navigation State
           const [currentView, setCurrentView] = useState('dashboard'); // dashboard, materials, places, add_expense, add_income, add_material, material_detail, place_detail, add_place
           const [viewParams, setViewParams] = useState({});
@@ -285,6 +304,60 @@
           const generatePlaceId = () => `PLC-${String(places.length + 1).padStart(3, '0')}`;
           const generateTxId = () => `TX-${String(transactions.length + 1).padStart(3, '0')}`;
 
+          const parseTxDate = (dateStr) => {
+            const [year, month, day] = dateStr.split('-');
+            return new Date(year, month - 1, day);
+          };
+
+          const getFilteredTransactions = (txs, period) => {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth();
+            const d = now.getDate();
+            
+            const today = new Date(y, m, d);
+            const dayOfWeek = today.getDay();
+            const diffToMonday = d - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            const startOfWeek = new Date(y, m, diffToMonday);
+            
+            return txs.filter(tx => {
+              const txDate = parseTxDate(tx.date);
+              
+              if (period === 'today') return txDate.getTime() === today.getTime();
+              if (period === 'week') return txDate >= startOfWeek;
+              if (period === 'month') return txDate.getFullYear() === y && txDate.getMonth() === m;
+              if (period === 'year') return txDate.getFullYear() === y;
+              return true; 
+            });
+          };
+
+          const renderTxItem = (tx) => {
+            const isOut = tx.type === 'out';
+            const mat = materials.find(m => m.id === tx.materialId);
+            return (
+              <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-2xl ${isOut ? 'bg-rose-50 text-rose-500' : 'bg-teal-50 text-teal-500'}`}>
+                    {isOut ? <IconBox /> : <IconWallet />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 text-sm">
+                      {mat ? (
+                         <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
+                            {mat.desc}
+                         </button>
+                      ) : (tx.desc || 'Unknown')}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(tx.date)} {isOut && mat ? `• ${mat.category}` : ''}</p>
+                  </div>
+                </div>
+                <div className={`font-semibold ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
+                  {isOut ? '-' : '+'}{formatIDR(isOut ? tx.price : tx.amount)}
+                </div>
+              </div>
+            );
+          };
+
           // --- DERIVED DATA ---
           const totalIn = transactions.filter(t => t.type === 'in').reduce((acc, curr) => acc + curr.amount, 0);
           const totalOut = transactions.filter(t => t.type === 'out').reduce((acc, curr) => acc + curr.price, 0);
@@ -297,63 +370,9 @@
             const [periodFilter, setPeriodFilter] = useState('all');
             const [txTypeFilter, setTxTypeFilter] = useState('all');
 
-            const parseTxDate = (dateStr) => {
-              const [year, month, day] = dateStr.split('-');
-              return new Date(year, month - 1, day);
-            };
-
-            const getFilteredTransactions = (txs, period) => {
-              const now = new Date();
-              const y = now.getFullYear();
-              const m = now.getMonth();
-              const d = now.getDate();
-              
-              const today = new Date(y, m, d);
-              const dayOfWeek = today.getDay();
-              const diffToMonday = d - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-              const startOfWeek = new Date(y, m, diffToMonday);
-              
-              return txs.filter(tx => {
-                const txDate = parseTxDate(tx.date);
-                
-                if (period === 'today') return txDate.getTime() === today.getTime();
-                if (period === 'week') return txDate >= startOfWeek;
-                if (period === 'month') return txDate.getFullYear() === y && txDate.getMonth() === m;
-                if (period === 'year') return txDate.getFullYear() === y;
-                return true; 
-              });
-            };
-
             const periodFilteredTxs = getFilteredTransactions(transactions, periodFilter);
             let listTxs = periodFilteredTxs.filter(tx => txTypeFilter === 'all' || tx.type === txTypeFilter);
             listTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            const renderTxItem = (tx) => {
-              const isOut = tx.type === 'out';
-              const mat = materials.find(m => m.id === tx.materialId);
-              return (
-                <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-3 rounded-2xl ${isOut ? 'bg-rose-50 text-rose-500' : 'bg-teal-50 text-teal-500'}`}>
-                      {isOut ? <IconBox /> : <IconWallet />}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800 text-sm">
-                        {mat ? (
-                           <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
-                              {mat.desc}
-                           </button>
-                        ) : (tx.desc || 'Unknown')}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">{formatDate(tx.date)} {isOut && mat ? `• ${mat.category}` : ''}</p>
-                    </div>
-                  </div>
-                  <div className={`font-semibold ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
-                    {isOut ? '-' : '+'}{formatIDR(isOut ? tx.price : tx.amount)}
-                  </div>
-                </div>
-              );
-            };
 
             return (
               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
@@ -361,20 +380,20 @@
                   <p className="text-teal-50 text-sm font-medium mb-1">Total Saldo Saat Ini</p>
                   <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-6">{formatIDR(balance)}</h2>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4">
+                    <button onClick={() => navigate('transaction_list', { type: 'out' })} className="bg-white/20 backdrop-blur-md rounded-2xl p-4 text-left cursor-pointer hover:bg-white/30 transition-all shadow-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="p-1 bg-white/20 rounded-full"><IconTrendingDown /></div>
                         <span className="text-xs font-medium uppercase tracking-wider">Pengeluaran</span>
                       </div>
                       <p className="font-semibold">{formatIDR(totalOut)}</p>
-                    </div>
-                    <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4">
+                    </button>
+                    <button onClick={() => navigate('transaction_list', { type: 'in' })} className="bg-white/20 backdrop-blur-md rounded-2xl p-4 text-left cursor-pointer hover:bg-white/30 transition-all shadow-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="p-1 bg-white/20 rounded-full"><IconTrendingUp /></div>
                         <span className="text-xs font-medium uppercase tracking-wider">Pemasukan</span>
                       </div>
                       <p className="font-semibold">{formatIDR(totalIn)}</p>
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -438,6 +457,65 @@
                      </div>
                   )}
                 </div>
+              </div>
+            );
+          };
+
+          // 1.5 Transaction List (Income/Expense Details)
+          const TransactionList = () => {
+            const { type } = viewParams; 
+            const isOut = type === 'out';
+            const [periodFilter, setPeriodFilter] = useState('all');
+
+            const periodFilteredTxs = getFilteredTransactions(transactions, periodFilter);
+            let listTxs = periodFilteredTxs.filter(tx => tx.type === type);
+            listTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            return (
+              <div className="space-y-6 pb-20 sm:pb-6 fade-in">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => navigate('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <h2 className="text-xl font-bold text-slate-800">Daftar {isOut ? 'Pengeluaran' : 'Pemasukan'}</h2>
+                </div>
+
+                <div className="flex items-center justify-between mt-4 mb-2 px-1">
+                    <h3 className="text-sm font-bold text-slate-500">Filter Periode:</h3>
+                    <select value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)} className="border border-slate-200 text-slate-600 rounded-xl px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-medium cursor-pointer">
+                        <option value="today">Hari Ini</option>
+                        <option value="week">Minggu Ini</option>
+                        <option value="month">Bulan Ini</option>
+                        <option value="year">Tahun Ini</option>
+                        <option value="all">Semua Waktu</option>
+                    </select>
+                </div>
+
+                {listTxs.length === 0 ? (
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 text-center text-slate-500 text-sm">Belum ada {isOut ? 'pengeluaran' : 'pemasukan'} pada periode ini</div>
+                ) : periodFilter === 'year' ? (
+                    <div className="space-y-4">
+                    {Object.entries(
+                        listTxs.reduce((acc, tx) => {
+                            const mName = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(parseTxDate(tx.date));
+                            if(!acc[mName]) acc[mName] = [];
+                            acc[mName].push(tx);
+                            return acc;
+                        }, {})
+                    ).map(([mName, mtxs]) => (
+                        <div key={mName} className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-slate-700 text-sm">{mName}</div>
+                            <div className="divide-y divide-slate-50">
+                                {mtxs.map(renderTxItem)}
+                            </div>
+                        </div>
+                    ))}
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="divide-y divide-slate-50">
+                        {listTxs.map(renderTxItem)}
+                    </div>
+                    </div>
+                )}
               </div>
             );
           };
@@ -779,6 +857,10 @@
                 placeId
               };
               setTransactions([...transactions, newTx]);
+              
+              // Sinkronisasi background ke Cloudflare D1
+              if (API_URL) fetch(`${API_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+
               navigate('dashboard');
             };
 
@@ -968,11 +1050,13 @@
 
               if (isEdit) {
                 setMaterials(materials.map(m => m.id === existing.id ? { ...m, ...matData } : m));
+                if (API_URL) fetch(`${API_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, ...matData}) }).catch(console.error);
                 navigate('material_detail', { id: existing.id });
               } else {
                 const newId = generateMaterialId(flowType === 'in' ? 'Income' : category);
                 const newMat = { id: newId, ...matData };
                 setMaterials([...materials, newMat]);
+                if (API_URL) fetch(`${API_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newMat) }).catch(console.error);
                 
                 if (viewParams.returnTo) {
                   navigate(viewParams.returnTo, { prefilledMaterial: newId });
@@ -1094,11 +1178,13 @@
               
               if (isEdit) {
                  setPlaces(places.map(p => p.id === existing.id ? { ...p, name, address, mapLink, photos } : p));
+                 if (API_URL) fetch(`${API_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, name, address, mapLink, photos}) }).catch(console.error);
                  navigate('place_detail', { id: existing.id });
               } else {
                  const newId = generatePlaceId();
                  const newPlace = { id: newId, name, address, mapLink, photos };
                  setPlaces([...places, newPlace]);
+                 if (API_URL) fetch(`${API_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newPlace) }).catch(console.error);
                  
                  if (viewParams.returnTo) {
                    navigate(viewParams.returnTo, { prefilledPlace: newId });
@@ -1191,6 +1277,10 @@
                 amount: parseInt(amount),
               };
               setTransactions([...transactions, newTx]);
+              
+              // Sinkronisasi background ke Cloudflare D1
+              if (API_URL) fetch(`${API_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+
               navigate('dashboard');
             };
 
@@ -1301,6 +1391,7 @@
               {/* Main Content Area */}
               <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 min-h-[calc(100vh-140px)]">
                 {currentView === 'dashboard' && <Dashboard />}
+                {currentView === 'transaction_list' && <TransactionList />}
                 {currentView === 'materials' && <MaterialList />}
                 {currentView === 'material_detail' && <MaterialDetail />}
                 {currentView === 'places' && <PlaceList />}
