@@ -842,13 +842,14 @@
 
             const [qty, setQty] = useState(1);
             const [pricePerUnit, setPricePerUnit] = useState('');
+            const [adminFee, setAdminFee] = useState('');
             
             const [placeId, setPlaceId] = useState('');
             const [placeSearch, setPlaceSearch] = useState('');
             const [showPlaceDropdown, setShowPlaceDropdown] = useState(false);
             const [note, setNote] = useState('');
             
-            const totalPrice = (parseFloat(qty) || 0) * (parseInt(pricePerUnit) || 0);
+            const totalPrice = (parseFloat(qty) || 0) * (parseInt(pricePerUnit) || 0) + (parseInt(adminFee) || 0);
 
             useEffect(() => {
               if (viewParams.prefilledMaterial) {
@@ -876,9 +877,14 @@
             const handleSave = (e) => {
               e.preventDefault();
               if (!materialId || !totalPrice || !placeId) return;
+
+              const adminAmt = parseInt(adminFee) || 0;
+              const adminText = adminAmt > 0 ? `(+Admin ${formatIDR(adminAmt)})` : '';
+              const finalNote = [note, adminText].filter(Boolean).join(' ');
+
               const newTx = {
                 id: generateTxId(), type: 'out', date, materialId, qty: parseFloat(qty),
-                pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId, note
+                pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId, note: finalNote
               };
               setTransactions([...transactions, newTx]);
               if (BASE_URL) fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
@@ -956,6 +962,14 @@
                           <input type="number" value={pricePerUnit} onChange={e => setPricePerUnit(e.target.value)} required className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="0" />
                         </div>
                      </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Admin (Opsional)</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
+                      <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="0" />
+                    </div>
                   </div>
 
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
@@ -1342,6 +1356,7 @@
              const [type, setType] = useState(existing?.type || viewParams.type || 'utang');
              const [personName, setPersonName] = useState(existing?.personName || '');
              const [amount, setAmount] = useState(existing?.amount || '');
+             const [adminFee, setAdminFee] = useState('');
              const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
              const [dueDate, setDueDate] = useState(existing?.dueDate || '');
              const [agreementPhotos, setAgreementPhotos] = useState(existing?.agreementPhotos || []);
@@ -1368,10 +1383,15 @@
                  navigate('debt_detail', { id: existing.id });
                } else {
                  const txType = type === 'utang' ? 'in' : 'out';
+                 const adminAmt = parseInt(adminFee) || 0;
                  const txDesc = type === 'utang' ? `Utang ke ${personName}` : `Piutang ke ${personName}`;
+                 const finalDesc = (type === 'piutang' && adminAmt > 0) ? `${txDesc} (+Admin ${formatIDR(adminAmt)})` : txDesc;
+
                  const newTx = {
-                   id: generateTxId(), type: txType, date, desc: txDesc,
-                   amount: txType === 'in' ? parseInt(amount) : null, price: txType === 'out' ? parseInt(amount) : null, qty: 1
+                   id: generateTxId(), type: txType, date, desc: finalDesc,
+                   amount: txType === 'in' ? parseInt(amount) : null, 
+                   price: txType === 'out' ? parseInt(amount) + adminAmt : null, 
+                   qty: 1
                  };
 
                  setDebts([...debts, newDebt]);
@@ -1410,6 +1430,16 @@
                      <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah (Rp)</label>
                      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="0" />
                    </div>
+
+                   {type === 'piutang' && (
+                     <div>
+                       <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Admin (Opsional)</label>
+                       <div className="relative">
+                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
+                         <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50" placeholder="0" />
+                       </div>
+                     </div>
+                   )}
 
                    <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1453,6 +1483,7 @@
 
              const [isSettling, setIsSettling] = useState(false);
              const [settledDate, setSettledDate] = useState(new Date().toISOString().split('T')[0]);
+             const [adminFee, setAdminFee] = useState('');
              const [settlementPhotos, setSettlementPhotos] = useState([]);
 
              const handleDelete = () => {
@@ -1466,10 +1497,15 @@
                 const updatedDebt = { ...debt, status: 'paid', settledDate, settlementPhotos };
                 
                 const txType = debt.type === 'utang' ? 'out' : 'in';
+                const adminAmt = parseInt(adminFee) || 0;
                 const txDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Pelunasan Piutang oleh ${debt.personName}`;
+                const finalDesc = (debt.type === 'utang' && adminAmt > 0) ? `${txDesc} (+Admin ${formatIDR(adminAmt)})` : txDesc;
+
                 const newTx = {
-                  id: generateTxId(), type: txType, date: settledDate, desc: txDesc,
-                  amount: txType === 'in' ? parseInt(debt.amount) : null, price: txType === 'out' ? parseInt(debt.amount) : null, qty: 1
+                  id: generateTxId(), type: txType, date: settledDate, desc: finalDesc,
+                  amount: txType === 'in' ? parseInt(debt.amount) : null, 
+                  price: txType === 'out' ? parseInt(debt.amount) + adminAmt : null, 
+                  qty: 1
                 };
 
                 setDebts(debts.map(d => d.id === debt.id ? updatedDebt : d));
@@ -1556,6 +1592,17 @@
                             <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Pelunasan</label>
                             <input type="date" value={settledDate} onChange={e => setSettledDate(e.target.value)} required className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white" />
                           </div>
+
+                          {debt.type === 'utang' && (
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Admin (Opsional)</label>
+                              <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
+                                <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-300 rounded-xl pl-10 pr-3 py-3 bg-white" placeholder="0" />
+                              </div>
+                            </div>
+                          )}
+
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">Upload Bukti Transfer / Pembayaran</label>
                             <div className="flex flex-wrap gap-3">
