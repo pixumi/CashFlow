@@ -46,7 +46,7 @@
 
         // --- HELPER COMPONENTS ---
         const PhotoGallery = ({ photos, title="Galeri Foto" }) => {
-            if (!photos || photos.length === 0) return null;
+            if (!photos || !Array.isArray(photos) || photos.length === 0) return null;
             return (
                 <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                     <h3 className="text-sm font-bold text-slate-700 mb-3">{title}</h3>
@@ -77,8 +77,8 @@
         // --- CHART COMPONENTS ---
         const SimpleLineChart = ({ data, color = "#0d9488" }) => {
           if (!data || data.length === 0) return <div className="text-slate-400 text-sm italic">Belum ada data</div>;
-          const values = data.map(d => d.value ?? d);
-          const labels = data.map(d => d.label ?? '');
+          const values = data.map(d => d.value || 0);
+          const labels = data.map(d => d.label || '');
           if (values.length === 1) { values.push(values[0]); labels.push(labels[0]); }
           
           const max = Math.max(...values);
@@ -91,7 +91,7 @@
             return `${x},${y}`;
           }).join(' ');
 
-          const formatY = (num) => new Intl.NumberFormat('id-ID', { notation: "compact", compactDisplay: "short" }).format(num);
+          const formatY = (num) => new Intl.NumberFormat('id-ID', { notation: "compact", compactDisplay: "short" }).format(num || 0);
 
           return (
             <div className="relative w-full h-32 mt-4 flex flex-col">
@@ -117,14 +117,14 @@
 
         const SimpleBarChart = ({ data, color = "#0d9488", unit = "" }) => {
           if (!data || data.length === 0) return <div className="text-slate-400 text-sm italic">Belum ada data</div>;
-          const values = data.map(d => d.value ?? d);
+          const values = data.map(d => d.value || 0);
           const max = Math.max(...values) || 1;
 
           return (
             <div className="flex items-end justify-between w-full h-32 mt-4 gap-2">
               {data.map((item, i) => {
-                const val = item.value ?? item;
-                const label = item.label ?? '';
+                const val = item.value || 0;
+                const label = item.label || '';
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center justify-end h-full relative">
                     <div className="text-[10px] font-bold text-slate-700 mb-1 whitespace-nowrap">{val} {unit}</div>
@@ -145,7 +145,8 @@
            const catTotals = {};
            expenses.forEach(tx => {
                const mat = materials.find(m => m.id === tx.materialId);
-               const cat = mat ? mat.category : (tx.desc && tx.desc.includes('Piutang') ? 'Piutang' : (tx.desc && tx.desc.includes('Utang') ? 'Utang' : 'Lainnya'));
+               const txDescSafe = tx.desc || '';
+               const cat = mat ? (mat.category || 'Lainnya') : (txDescSafe.includes('Piutang') ? 'Piutang' : (txDescSafe.includes('Utang') ? 'Utang' : 'Lainnya'));
                catTotals[cat] = (catTotals[cat] || 0) + (tx.price || tx.amount || 0);
            });
 
@@ -229,7 +230,6 @@
           // --- FETCH DATA ---
           useEffect(() => {
              if (!BASE_URL) {
-                 // Fallback if API is empty
                  setCategories([
                     {id: 'CAT-1', name: 'Motor', type: 'out'}, {id: 'CAT-2', name: 'Bensin', type: 'out'}, 
                     {id: 'CAT-3', name: 'Hobby', type: 'out'}, {id: 'CAT-4', name: 'Internet', type: 'out'}, 
@@ -269,14 +269,20 @@
           const [currentView, setCurrentView] = useState('dashboard');
           const [viewParams, setViewParams] = useState({});
 
-          // --- UTILS & HELPERS ---
+          // --- SAFE UTILS & HELPERS ---
           const formatIDR = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
-          const formatDate = (dateStr) => new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(dateStr));
+          
+          const formatDate = (dateStr) => {
+             if (!dateStr) return '-';
+             const d = new Date(dateStr);
+             if (isNaN(d.getTime())) return '-';
+             return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+          };
           
           const navigate = (view, params = {}) => { setCurrentView(view); setViewParams(params); };
 
-          const generateMaterialId = (category) => {
-            const existing = materials.filter(m => m.id.startsWith('MAT'));
+          const generateMaterialId = () => {
+            const existing = materials.filter(m => (m.id || '').startsWith('MAT'));
             return `MAT-${String(existing.length + 1).padStart(3, '0')}`;
           };
           const generatePlaceId = () => `PLC-${String(places.length + 1).padStart(3, '0')}`;
@@ -285,8 +291,10 @@
           const generateCatId = () => `CAT-${Date.now().toString().slice(-6)}`;
 
           const parseTxDate = (dateStr) => {
-            const [year, month, day] = dateStr.split('-');
-            return new Date(year, month - 1, day);
+            if (!dateStr) return new Date();
+            const parts = dateStr.split('-');
+            if (parts.length < 3) return new Date();
+            return new Date(parts[0], parts[1] - 1, parts[2]);
           };
 
           const getFilteredTransactions = (txs, period) => {
@@ -321,30 +329,30 @@
                     <p className="font-semibold text-slate-800 text-sm whitespace-nowrap text-ellipsis overflow-hidden">
                       {mat ? (
                          <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
-                            {mat.desc}
+                            {mat.desc || 'Tanpa Nama'}
                          </button>
                       ) : (tx.desc || 'Transaksi')}
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat ? `• ${mat.category}` : ''}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat ? `• ${mat.category || ''}` : ''}</p>
                     {tx.note && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
                   </div>
                 </div>
                 <div className={`font-semibold whitespace-nowrap flex-shrink-0 ml-2 ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
-                  {isOut ? '-' : '+'}{formatIDR(isOut ? (tx.price || tx.amount) : tx.amount)}
+                  {isOut ? '-' : '+'}{formatIDR(isOut ? (tx.price || tx.amount) : (tx.amount || 0))}
                 </div>
               </div>
             );
           };
 
           // --- DERIVED DATA ---
-          const totalIn = transactions.filter(t => t.type === 'in').reduce((acc, curr) => acc + curr.amount, 0);
+          const totalIn = transactions.filter(t => t.type === 'in').reduce((acc, curr) => acc + (curr.amount || 0), 0);
           const totalOut = transactions.filter(t => t.type === 'out').reduce((acc, curr) => acc + (curr.price || curr.amount || 0), 0);
           const balance = totalIn - totalOut;
           
           const activeUtangList = debts.filter(d => d.type === 'utang' && d.status === 'active');
           const activePiutangList = debts.filter(d => d.type === 'piutang' && d.status === 'active');
-          const totalActiveUtang = activeUtangList.reduce((acc, curr) => acc + curr.amount, 0);
-          const totalActivePiutang = activePiutangList.reduce((acc, curr) => acc + curr.amount, 0);
+          const totalActiveUtang = activeUtangList.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+          const totalActivePiutang = activePiutangList.reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
           // --- SUB-COMPONENTS (PAGES) ---
 
@@ -355,7 +363,7 @@
 
             const periodFilteredTxs = getFilteredTransactions(transactions, periodFilter);
             let listTxs = periodFilteredTxs.filter(tx => txTypeFilter === 'all' || tx.type === txTypeFilter);
-            listTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+            listTxs.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
             return (
               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
@@ -394,12 +402,12 @@
                 
                 {/* Utang Piutang Summary on Dashboard */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div onClick={() => navigate('debts')} className="bg-white rounded-2xl p-4 border border-rose-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center">
-                     <p className="text-xs text-rose-500 font-bold mb-1 uppercase">Total Utang Aktif ({activeUtangList.length})</p>
+                  <div onClick={() => navigate('debts', { tab: 'utang' })} className="bg-white rounded-2xl p-4 border border-rose-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center">
+                     <p className="text-xs text-rose-500 font-bold mb-1 uppercase">Utang Aktif ({activeUtangList.length})</p>
                      <p className="text-lg font-bold text-slate-800">{formatIDR(totalActiveUtang)}</p>
                   </div>
-                  <div onClick={() => navigate('debts')} className="bg-white rounded-2xl p-4 border border-indigo-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center">
-                     <p className="text-xs text-indigo-500 font-bold mb-1 uppercase">Total Piutang Aktif ({activePiutangList.length})</p>
+                  <div onClick={() => navigate('debts', { tab: 'piutang' })} className="bg-white rounded-2xl p-4 border border-indigo-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center">
+                     <p className="text-xs text-indigo-500 font-bold mb-1 uppercase">Piutang Aktif ({activePiutangList.length})</p>
                      <p className="text-lg font-bold text-slate-800">{formatIDR(totalActivePiutang)}</p>
                   </div>
                 </div>
@@ -467,7 +475,7 @@
 
             const periodFilteredTxs = getFilteredTransactions(transactions, periodFilter);
             let listTxs = periodFilteredTxs.filter(tx => tx.type === type);
-            listTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+            listTxs.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
             return (
               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
@@ -522,8 +530,8 @@
           const MaterialList = () => {
             const [searchTerm, setSearchTerm] = useState('');
             const filteredMaterials = materials.filter(m => {
-               const term = searchTerm.toLowerCase();
-               return m.desc.toLowerCase().includes(term) || m.id.toLowerCase().includes(term) || (m.brand && m.brand.toLowerCase().includes(term));
+               const term = (searchTerm || '').toLowerCase();
+               return (m.desc || '').toLowerCase().includes(term) || (m.id || '').toLowerCase().includes(term) || (m.brand && m.brand.toLowerCase().includes(term));
             });
 
             return (
@@ -542,7 +550,7 @@
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {filteredMaterials.map(mat => {
-                    const isIncome = mat.flowType === 'in' || mat.category === 'Income';
+                    const isIncome = mat.flowType === 'in';
                     return (
                     <div key={mat.id} onClick={() => navigate('material_detail', { id: mat.id })} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all hover:border-teal-200">
                       <div className="flex justify-between items-start mb-2">
@@ -551,10 +559,10 @@
                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                               {isIncome ? 'Masuk' : 'Keluar'}
                            </span>
-                           <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded-md font-medium">{mat.category}</span>
+                           <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded-md font-medium">{mat.category || '-'}</span>
                         </div>
                       </div>
-                      <h3 className="font-bold text-slate-800 text-lg mb-1">{mat.desc}</h3>
+                      <h3 className="font-bold text-slate-800 text-lg mb-1">{mat.desc || 'Tanpa Nama'}</h3>
                       <p className="text-sm text-slate-500">
                          {isIncome ? `Sumber: ${mat.source || '-'}` : `${mat.brand || '-'} • ${mat.partNum || '-'}`}
                       </p>
@@ -570,25 +578,25 @@
             const mat = materials.find(m => m.id === viewParams.id);
             if (!mat) return <div>Material not found</div>;
 
-            const relatedTx = transactions.filter(t => (t.type === 'out' || t.type === 'in') && t.materialId === mat.id).sort((a,b) => new Date(a.date) - new Date(b.date));
+            const relatedTx = transactions.filter(t => (t.type === 'out' || t.type === 'in') && t.materialId === mat.id).sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
             
             const groupedTx = relatedTx.reduce((acc, tx) => {
-                const date = tx.date;
-                if (!acc[date]) acc[date] = { date, count: 0, price: tx.pricePerUnit || tx.price || tx.amount };
+                const date = tx.date || '';
+                if (!acc[date]) acc[date] = { date, count: 0, price: tx.pricePerUnit || tx.price || tx.amount || 0 };
                 acc[date].count += (tx.qty || 1);
                 return acc;
             }, {});
-            const chartData = Object.values(groupedTx).sort((a,b) => new Date(a.date) - new Date(b.date));
+            const chartData = Object.values(groupedTx).sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
             
             const priceData = chartData.map(d => ({ value: d.price, label: formatDate(d.date) }));
             const freqData = chartData.map(d => ({ value: d.count, label: formatDate(d.date) }));
 
-            const isIncome = mat.flowType === 'in' || mat.category === 'Income';
+            const isIncome = mat.flowType === 'in';
 
             const handleDelete = () => {
                if(!confirm('Yakin ingin menghapus Material ini selamanya?')) return;
                setMaterials(materials.filter(m => m.id !== mat.id));
-               if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: mat.id}) }).catch(console.error);
+               if (BASE_URL) fetch(`${BASE_URL}/materials?id=${mat.id}`, { method: 'DELETE' }).catch(console.error);
                navigate('materials');
             };
 
@@ -616,11 +624,11 @@
                          <div className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider inline-block ${isIncome ? 'text-emerald-700 bg-emerald-50' : 'text-teal-700 bg-teal-50'}`}>{mat.id}</div>
                          <div className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{isIncome ? 'Pemasukan' : 'Pengeluaran'}</div>
                       </div>
-                      <h2 className="text-2xl font-bold text-slate-800">{mat.desc}</h2>
+                      <h2 className="text-2xl font-bold text-slate-800">{mat.desc || 'Tanpa Nama'}</h2>
                     </div>
                     <div className="text-right">
                       <span className="block text-xs text-slate-400">Kategori</span>
-                      <span className="font-semibold text-slate-700">{mat.category}</span>
+                      <span className="font-semibold text-slate-700">{mat.category || '-'}</span>
                     </div>
                   </div>
                   {isIncome ? (
@@ -710,21 +718,30 @@
 
           // 3.5 Place List (Vendor Master)
           const PlaceList = () => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const filteredPlaces = places.filter(p => (p.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()));
+            
             return (
               <div className="space-y-4 pb-20 sm:pb-6 fade-in">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <h2 className="text-2xl font-bold text-slate-800">Master Vendor / Toko</h2>
-                  <button onClick={() => navigate('add_place')} className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded-xl shadow-sm transition-colors">
-                    <IconPlus />
-                  </button>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:w-64">
+                      <IconSearch className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                      <input type="text" placeholder="Cari nama tempat..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-white shadow-sm" />
+                    </div>
+                    <button onClick={() => navigate('add_place')} className="bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
+                      <IconPlus />
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {places.map(place => (
+                  {filteredPlaces.map(place => (
                     <div key={place.id} onClick={() => navigate('place_detail', { id: place.id })} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all hover:border-teal-200">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">{place.id}</span>
                       </div>
-                      <h3 className="font-bold text-slate-800 text-lg mb-1">{place.name}</h3>
+                      <h3 className="font-bold text-slate-800 text-lg mb-1">{place.name || 'Tanpa Nama'}</h3>
                       <p className="text-sm text-slate-500 line-clamp-1">{place.address}</p>
                     </div>
                   ))}
@@ -737,12 +754,12 @@
           const PlaceDetail = () => {
             const place = places.find(p => p.id === viewParams.id);
             if (!place) return <div>Place not found</div>;
-            const relatedTx = transactions.filter(t => t.type === 'out' && t.placeId === place.id).sort((a,b) => new Date(b.date) - new Date(a.date));
+            const relatedTx = transactions.filter(t => t.type === 'out' && t.placeId === place.id).sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
 
             const handleDelete = () => {
                if(!confirm('Yakin ingin menghapus Tempat/Vendor ini selamanya?')) return;
                setPlaces(places.filter(p => p.id !== place.id));
-               if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: place.id}) }).catch(console.error);
+               if (BASE_URL) fetch(`${BASE_URL}/places?id=${place.id}`, { method: 'DELETE' }).catch(console.error);
                navigate('places');
             };
 
@@ -766,9 +783,9 @@
                 <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
                   <div className="p-6">
                      <div className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg uppercase tracking-wider inline-block mb-2">{place.id}</div>
-                     <h2 className="text-2xl font-bold text-slate-800 mb-2">{place.name}</h2>
+                     <h2 className="text-2xl font-bold text-slate-800 mb-2">{place.name || 'Tanpa Nama'}</h2>
                      <p className="text-slate-500 text-sm mb-4 flex items-start gap-2">
-                        <span className="mt-0.5 text-slate-400"><IconMapPin /></span> {place.address}
+                        <span className="mt-0.5 text-slate-400"><IconMapPin /></span> {place.address || '-'}
                      </p>
                      {place.mapLink && (
                        <a href={place.mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-medium px-4 py-2 rounded-xl transition-colors text-sm">
@@ -846,7 +863,7 @@
             }, [viewParams, materials, places]);
 
             const selectMaterial = (m) => {
-              setMaterialId(m.id); setMatSearch(m.id); setDescSearch(`${m.desc} - ${m.partNum}`);
+              setMaterialId(m.id); setMatSearch(m.id); setDescSearch(`${m.desc || ''} - ${m.partNum || ''}`);
               setShowMatDropdown(false); setShowDescDropdown(false);
             };
 
@@ -869,12 +886,12 @@
             };
 
             const outMaterials = materials.filter(m => m.flowType === 'out' || m.flowType === undefined);
-            const filteredByMat = outMaterials.filter(m => m.id.toLowerCase().includes(matSearch.toLowerCase()));
+            const filteredByMat = outMaterials.filter(m => (m.id || '').toLowerCase().includes((matSearch || '').toLowerCase()));
             const filteredByDesc = outMaterials.filter(m => {
-              const combined = `${m.desc} - ${m.partNum || ''}`.toLowerCase();
-              return combined.includes(descSearch.toLowerCase());
+              const combined = `${m.desc || ''} - ${m.partNum || ''}`.toLowerCase();
+              return combined.includes((descSearch || '').toLowerCase());
             });
-            const filteredPlaces = places.filter(p => p.name.toLowerCase().includes(placeSearch.toLowerCase()));
+            const filteredPlaces = places.filter(p => (p.name || '').toLowerCase().includes((placeSearch || '').toLowerCase()));
 
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
@@ -919,7 +936,7 @@
                         {showDescDropdown && (
                           <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                             {filteredByDesc.length > 0 ? filteredByDesc.map(m => (
-                              <div key={m.id} onClick={() => selectMaterial(m)} className="px-4 py-2 hover:bg-teal-50 cursor-pointer text-sm border-b border-slate-50">{m.desc} - {m.partNum} <span className="text-xs text-slate-400">({m.id})</span></div>
+                              <div key={m.id} onClick={() => selectMaterial(m)} className="px-4 py-2 hover:bg-teal-50 cursor-pointer text-sm border-b border-slate-50">{m.desc || 'Tanpa Nama'} - {m.partNum || ''} <span className="text-xs text-slate-400">({m.id})</span></div>
                             )) : <div className="px-4 py-2 text-sm text-slate-400">Tidak ditemukan</div>}
                           </div>
                         )}
@@ -960,7 +977,7 @@
                       {showPlaceDropdown && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                           {filteredPlaces.length > 0 ? filteredPlaces.map(p => (
-                            <div key={p.id} onClick={() => selectPlace(p)} className="px-4 py-2 hover:bg-teal-50 cursor-pointer text-sm border-b border-slate-50">{p.name}</div>
+                            <div key={p.id} onClick={() => selectPlace(p)} className="px-4 py-2 hover:bg-teal-50 cursor-pointer text-sm border-b border-slate-50">{p.name || 'Tanpa Nama'}</div>
                           )) : <div className="px-4 py-2 text-sm text-slate-400">Tidak ditemukan</div>}
                         </div>
                       )}
@@ -983,7 +1000,7 @@
             const isEdit = !!viewParams.editId;
             const existing = isEdit ? materials.find(m => m.id === viewParams.editId) : null;
             
-            const outCats = categories.filter(c => c.type === 'out');
+            const outCats = categories.filter(c => (c.type || 'out') === 'out');
             const inCats = categories.filter(c => c.type === 'in');
 
             const [flowType, setFlowType] = useState(existing?.flowType || 'out');
@@ -1041,7 +1058,7 @@
                       <div>
                         <div className="flex justify-between items-center mb-1">
                            <label className="block text-sm font-medium text-slate-700">Kategori Pengeluaran</label>
-                           <button type="button" onClick={() => navigate('categories')} className="text-xs text-teal-600 font-semibold hover:underline">+ Kelola</button>
+                           <button type="button" onClick={() => navigate('categories', { tab: 'out' })} className="text-xs text-teal-600 font-semibold hover:underline">+ Kelola</button>
                         </div>
                         <select value={category} onChange={e => setCategory(e.target.value)} disabled={isEdit} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50 disabled:opacity-70">
                           {outCats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1086,7 +1103,7 @@
                       <div>
                         <div className="flex justify-between items-center mb-1">
                            <label className="block text-sm font-medium text-slate-700">Kategori Pemasukan</label>
-                           <button type="button" onClick={() => navigate('categories')} className="text-xs text-emerald-600 font-semibold hover:underline">+ Kelola</button>
+                           <button type="button" onClick={() => navigate('categories', { tab: 'in' })} className="text-xs text-emerald-600 font-semibold hover:underline">+ Kelola</button>
                         </div>
                         <select value={category} onChange={e => setCategory(e.target.value)} disabled={isEdit} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50 disabled:opacity-70">
                           {inCats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1190,7 +1207,7 @@
             const [note, setNote] = useState('');
 
             const selectMaterial = (m) => {
-              setMaterialId(m.id); setMatSearch(m.id); setDescSearch(`${m.desc} - ${m.source}`);
+              setMaterialId(m.id); setMatSearch(m.id); setDescSearch(`${m.desc || ''} - ${m.source || ''}`);
               if (m.amount) setAmount(m.amount);
               setShowMatDropdown(false); setShowDescDropdown(false);
             };
@@ -1206,10 +1223,10 @@
             };
 
             const inMaterials = materials.filter(m => m.flowType === 'in' || m.category === 'Income');
-            const filteredByMat = inMaterials.filter(m => m.id.toLowerCase().includes(matSearch.toLowerCase()));
+            const filteredByMat = inMaterials.filter(m => (m.id || '').toLowerCase().includes((matSearch || '').toLowerCase()));
             const filteredByDesc = inMaterials.filter(m => {
-              const combined = `${m.desc} - ${m.source || ''}`.toLowerCase();
-              return combined.includes(descSearch.toLowerCase());
+              const combined = `${m.desc || ''} - ${m.source || ''}`.toLowerCase();
+              return combined.includes((descSearch || '').toLowerCase());
             });
 
             return (
@@ -1238,7 +1255,7 @@
                         {showDescDropdown && (
                           <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                             {filteredByDesc.length > 0 ? filteredByDesc.map(m => (
-                              <div key={m.id} onClick={() => selectMaterial(m)} className="px-4 py-2 hover:bg-emerald-50 cursor-pointer text-sm border-b border-slate-50">{m.desc} - {m.source}</div>
+                              <div key={m.id} onClick={() => selectMaterial(m)} className="px-4 py-2 hover:bg-emerald-50 cursor-pointer text-sm border-b border-slate-50">{m.desc || 'Tanpa Nama'} - {m.source || ''}</div>
                             )) : <div className="px-4 py-2 text-sm text-slate-400">Tidak ditemukan</div>}
                           </div>
                         )}
@@ -1265,7 +1282,7 @@
            // 9. Debt List
            const DebtList = () => {
              const [tab, setTab] = useState(viewParams.tab || 'utang');
-             const filteredDebts = debts.filter(d => d.type === tab).sort((a, b) => new Date(b.date) - new Date(a.date));
+             const filteredDebts = debts.filter(d => d.type === tab).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
              const activeDebts = filteredDebts.filter(d => d.status === 'active');
              const paidDebts = filteredDebts.filter(d => d.status === 'paid');
 
@@ -1289,7 +1306,7 @@
                     {activeDebts.map(d => (
                        <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
                           <div className="flex justify-between items-start mb-2">
-                             <span className="font-bold text-slate-800 text-lg">{d.personName}</span>
+                             <span className="font-bold text-slate-800 text-lg">{d.personName || 'Tanpa Nama'}</span>
                              <span className={`font-bold ${tab === 'utang' ? 'text-rose-600' : 'text-teal-600'}`}>{formatIDR(d.amount)}</span>
                           </div>
                           <div className="flex justify-between text-xs text-slate-500">
@@ -1304,7 +1321,7 @@
                     {paidDebts.map(d => (
                        <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-slate-50 opacity-75 p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:opacity-100 transition-all">
                           <div className="flex justify-between items-start mb-2">
-                             <span className="font-bold text-slate-800 text-lg line-through">{d.personName}</span>
+                             <span className="font-bold text-slate-800 text-lg line-through">{d.personName || 'Tanpa Nama'}</span>
                              <span className="font-bold text-slate-500">{formatIDR(d.amount)}</span>
                           </div>
                           <div className="text-xs text-slate-500">
@@ -1460,7 +1477,7 @@
                          </div>
                       </div>
                       
-                      <h2 className="text-xl font-bold text-slate-800 mb-4">{debt.personName}</h2>
+                      <h2 className="text-xl font-bold text-slate-800 mb-4">{debt.personName || 'Tanpa Nama'}</h2>
                       
                       <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 text-sm">
                          <div>
@@ -1532,8 +1549,8 @@
 
            // 12. Category Management
            const CategoryList = () => {
-              const [tab, setTab] = useState('out'); // 'out' or 'in'
-              const filteredCats = categories.filter(c => c.type === tab);
+              const [tab, setTab] = useState(viewParams.tab || 'out'); // 'out' or 'in'
+              const filteredCats = categories.filter(c => (c.type || 'out') === tab);
               
               return (
                 <div className="space-y-4 pb-20 sm:pb-6 fade-in max-w-md mx-auto">
@@ -1560,7 +1577,7 @@
                   </div>
                 </div>
               );
-           }
+           };
 
            const AddCategory = () => {
               const isEdit = !!viewParams.editId;
@@ -1577,19 +1594,19 @@
                  else setCategories([...categories, newCat]);
                  
                  if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newCat) }).catch(console.error);
-                 navigate('categories');
-              }
+                 navigate('categories', { tab: type });
+              };
 
               const handleDelete = () => {
                  setCategories(categories.filter(c => c.id !== existing.id));
-                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id}) }).catch(console.error);
-                 navigate('categories');
-              }
+                 if(BASE_URL) fetch(`${BASE_URL}/categories?id=${existing.id}`, { method: 'DELETE' }).catch(console.error);
+                 navigate('categories', { tab: type });
+              };
 
               return (
                  <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                     <div className="flex items-center gap-3">
-                       <button onClick={() => navigate('categories')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                       <button onClick={() => navigate('categories', { tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                        <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
                     </div>
                     <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
@@ -1599,9 +1616,9 @@
                        </div>
                        <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Nama Kategori</label>
-                          <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" placeholder="Contoh: Belanja Bulanan" />
+                          <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:ring-2 focus:ring-teal-500/20 focus:outline-none" placeholder="Contoh: Belanja Bulanan" />
                        </div>
-                       <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">Simpan Kategori</button>
+                       <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-colors">Simpan Kategori</button>
                        {isEdit && (
                           <button type="button" onClick={() => confirmDelete ? handleDelete() : setConfirmDelete(true)} onMouseLeave={() => setConfirmDelete(false)} className={`w-full font-bold py-4 rounded-xl shadow-sm transition-all mt-3 ${confirmDelete ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600'}`}>
                              {confirmDelete ? 'Yakin Hapus Kategori?' : 'Hapus Kategori'}
@@ -1609,56 +1626,10 @@
                        )}
                     </form>
                  </div>
-              )
-           }
+              );
+           };
 
-           const AddCategory = () => {
-              const isEdit = !!viewParams.editId;
-              const existing = isEdit ? categories.find(c => c.id === viewParams.editId) : null;
-              const [name, setName] = useState(existing?.name || '');
-              const [confirmDelete, setConfirmDelete] = useState(false);
-
-              const handleSave = (e) => {
-                 e.preventDefault();
-                 if(!name) return;
-                 const newCat = { id: isEdit ? existing.id : generateCatId(), name };
-                 if(isEdit) setCategories(categories.map(c => c.id === existing.id ? newCat : c));
-                 else setCategories([...categories, newCat]);
-                 
-                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newCat) }).catch(console.error);
-                 navigate('categories');
-              }
-
-              const handleDelete = () => {
-                 setCategories(categories.filter(c => c.id !== existing.id));
-                 if(BASE_URL) fetch(`${BASE_URL}/categories`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id}) }).catch(console.error);
-                 navigate('categories');
-              }
-
-              return (
-                 <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
-                    <div className="flex items-center gap-3">
-                       <button onClick={() => navigate('categories')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
-                       <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
-                    </div>
-                    <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                       <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Nama Kategori</label>
-                          <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50" placeholder="Contoh: Belanja Bulanan" />
-                       </div>
-                       <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">Simpan Kategori</button>
-                       {isEdit && (
-                          <button type="button" onClick={() => confirmDelete ? handleDelete() : setConfirmDelete(true)} onMouseLeave={() => setConfirmDelete(false)} className={`w-full font-bold py-4 rounded-xl shadow-sm transition-all mt-3 ${confirmDelete ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600'}`}>
-                             {confirmDelete ? 'Yakin Hapus Kategori?' : 'Hapus Kategori'}
-                          </button>
-                       )}
-                    </form>
-                 </div>
-              )
-           }
-
-
-          // MAIN RENDER
+          // --- MAIN RENDER ---
           return (
             <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
               {/* Desktop Header */}
