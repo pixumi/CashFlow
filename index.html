@@ -53,6 +53,7 @@
         const IconSearch = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
         const IconCamera = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>;
         const IconX = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
 
         // --- HELPER COMPONENTS (Charts & Others) ---
         const PhotoGallery = ({ photos }) => {
@@ -264,9 +265,14 @@
             { id: 'TX-004', type: 'out', date: '2026-11-08', materialId: 'MTR-001', price: 57000, placeId: 'PLC-001' }
           ];
 
+          const mockDebts = [
+            { id: 'DBT-001', type: 'utang', person: 'Budi (Teman)', amount: 500000, date: '2026-11-05', dueDate: '2026-11-20', status: 'active', agreementPhotos: [], paymentPhotos: [], settledDate: null }
+          ];
+
           const [materials, setMaterials] = useState(BASE_URL ? [] : mockMaterials);
           const [places, setPlaces] = useState(BASE_URL ? [] : mockPlaces);
           const [transactions, setTransactions] = useState(BASE_URL ? [] : mockTransactions);
+          const [debts, setDebts] = useState(BASE_URL ? [] : mockDebts);
 
           // Efek untuk memuat data dari Cloudflare D1 saat aplikasi pertama kali dibuka (jika API_URL diisi)
           useEffect(() => {
@@ -274,21 +280,23 @@
              Promise.all([
                  fetch(`${BASE_URL}/materials`).then(r => r.json()),
                  fetch(`${BASE_URL}/places`).then(r => r.json()),
-                 fetch(`${BASE_URL}/transactions`).then(r => r.json())
-             ]).then(([m, p, t]) => {
+                 fetch(`${BASE_URL}/transactions`).then(r => r.json()),
+                 fetch(`${BASE_URL}/debts`).then(r => r.json())
+             ]).then(([m, p, t, d]) => {
                  if (m?.success) setMaterials(m.data);
                  if (p?.success) setPlaces(p.data);
                  if (t?.success) setTransactions(t.data);
+                 if (d?.success) setDebts(d.data);
                  
                  // Lapor ke console browser jika database error
-                 if (m?.error || p?.error || t?.error) {
-                     console.error("Kesalahan Database D1:", {m: m?.error, p: p?.error, t: t?.error});
+                 if (m?.error || p?.error || t?.error || d?.error) {
+                     console.error("Kesalahan Database D1:", {m: m?.error, p: p?.error, t: t?.error, d: d?.error});
                  }
              }).catch(err => console.error("Error memuat API:", err));
           }, []);
 
           // Navigation State
-          const [currentView, setCurrentView] = useState('dashboard'); // dashboard, materials, places, add_expense, add_income, add_material, material_detail, place_detail, add_place
+          const [currentView, setCurrentView] = useState('dashboard'); // dashboard, materials, places, add_expense, add_income, add_material, material_detail, place_detail, add_place, debts, add_debt, debt_detail
           const [viewParams, setViewParams] = useState({});
 
           // --- UTILS & HELPERS ---
@@ -313,6 +321,7 @@
 
           const generatePlaceId = () => `PLC-${String(places.length + 1).padStart(3, '0')}`;
           const generateTxId = () => `TX-${String(transactions.length + 1).padStart(3, '0')}`;
+          const generateDebtId = () => `DBT-${String(debts.length + 1).padStart(3, '0')}`;
 
           const parseTxDate = (dateStr) => {
             const [year, month, day] = dateStr.split('-');
@@ -414,6 +423,40 @@
                   <button onClick={() => navigate('add_income')} className="flex-1 bg-white border border-teal-100 hover:bg-teal-50 text-teal-600 font-semibold py-3 px-4 rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-colors">
                     <IconTrendingUp /> Catat Masuk
                   </button>
+                </div>
+
+                {/* Dashboard Utang & Piutang Summary */}
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                   {(() => {
+                      const activeUtang = debts.filter(d => d.type === 'utang' && d.status === 'active');
+                      const totalUtangAmount = activeUtang.reduce((s, d) => s + d.amount, 0);
+                      const activePiutang = debts.filter(d => d.type === 'piutang' && d.status === 'active');
+                      const totalPiutangAmount = activePiutang.reduce((s, d) => s + d.amount, 0);
+                      return (
+                         <>
+                            <div onClick={() => navigate('debts', { tab: 'utang' })} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all flex flex-col justify-between">
+                               <div className="flex justify-between items-start mb-2">
+                                  <div className="p-2 bg-rose-50 text-rose-600 rounded-xl"><IconUsers /></div>
+                                  <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{activeUtang.length} Aktif</span>
+                               </div>
+                               <div>
+                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Total Utang</p>
+                                  <p className="text-lg font-bold text-slate-800">{formatIDR(totalUtangAmount)}</p>
+                               </div>
+                            </div>
+                            <div onClick={() => navigate('debts', { tab: 'piutang' })} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 cursor-pointer hover:border-teal-200 transition-all flex flex-col justify-between">
+                               <div className="flex justify-between items-start mb-2">
+                                  <div className="p-2 bg-teal-50 text-teal-600 rounded-xl"><IconUsers /></div>
+                                  <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{activePiutang.length} Aktif</span>
+                               </div>
+                               <div>
+                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Total Piutang</p>
+                                  <p className="text-lg font-bold text-slate-800">{formatIDR(totalPiutangAmount)}</p>
+                               </div>
+                            </div>
+                         </>
+                      )
+                   })()}
                 </div>
 
                 <div className="flex items-center justify-between mt-8 mb-4 px-1">
@@ -1404,6 +1447,310 @@
             )
            }
 
+           // 9. Debt List
+           const DebtList = () => {
+             const [tab, setTab] = useState(viewParams.tab || 'utang'); // utang or piutang
+             const filteredDebts = debts.filter(d => d.type === tab).sort((a, b) => new Date(b.date) - new Date(a.date));
+             const activeDebts = filteredDebts.filter(d => d.status === 'active');
+             const paidDebts = filteredDebts.filter(d => d.status === 'paid');
+
+             return (
+               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
+                 <div className="flex items-center justify-between">
+                   <h2 className="text-2xl font-bold text-slate-800">Utang & Piutang</h2>
+                   <button onClick={() => navigate('add_debt', { type: tab })} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
+                     <IconPlus />
+                   </button>
+                 </div>
+                 
+                 <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                   <button onClick={() => setTab('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Utang (Pinjam)</button>
+                   <button onClick={() => setTab('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'piutang' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Piutang (Beri)</button>
+                 </div>
+
+                 <div className="space-y-4">
+                    <h3 className="font-bold text-slate-700">Belum Lunas ({activeDebts.length})</h3>
+                    {activeDebts.length === 0 && <p className="text-sm text-slate-400">Tidak ada data aktif.</p>}
+                    {activeDebts.map(d => (
+                       <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                             <span className="font-bold text-slate-800 text-lg">{d.person}</span>
+                             <span className={`font-bold ${tab === 'utang' ? 'text-rose-600' : 'text-teal-600'}`}>{formatIDR(d.amount)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-slate-500">
+                             <span>Dibuat: {formatDate(d.date)}</span>
+                             <span className="font-semibold text-rose-500">Jatuh Tempo: {formatDate(d.dueDate)}</span>
+                          </div>
+                       </div>
+                    ))}
+
+                    <h3 className="font-bold text-slate-700 mt-6">Sudah Lunas ({paidDebts.length})</h3>
+                    {paidDebts.length === 0 && <p className="text-sm text-slate-400">Tidak ada riwayat lunas.</p>}
+                    {paidDebts.map(d => (
+                       <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-slate-50 opacity-75 p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:opacity-100 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                             <span className="font-bold text-slate-800 text-lg line-through">{d.person}</span>
+                             <span className="font-bold text-slate-500">{formatIDR(d.amount)}</span>
+                          </div>
+                          <div className="text-xs text-slate-500">
+                             Lunas pada: {formatDate(d.settledDate)}
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+               </div>
+             );
+           };
+
+           // 10. Add Debt
+           const AddDebt = () => {
+             const prefilledType = viewParams.type || 'utang';
+             const [type, setType] = useState(prefilledType);
+             const [person, setPerson] = useState('');
+             const [amount, setAmount] = useState('');
+             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+             const [dueDate, setDueDate] = useState('');
+             const [agreementPhotos, setAgreementPhotos] = useState([]);
+
+             const handleSave = (e) => {
+               e.preventDefault();
+               if (!person || !amount || !dueDate) return;
+               
+               const newDebt = {
+                 id: generateDebtId(),
+                 type,
+                 person,
+                 amount: parseInt(amount),
+                 date,
+                 dueDate,
+                 status: 'active',
+                 agreementPhotos,
+                 paymentPhotos: [],
+                 settledDate: null
+               };
+
+               const txType = type === 'utang' ? 'in' : 'out';
+               const txDesc = type === 'utang' ? `Pinjaman dari ${person}` : `Pinjaman ke ${person}`;
+               const newTx = {
+                 id: generateTxId(),
+                 type: txType,
+                 date,
+                 desc: txDesc,
+                 amount: txType === 'in' ? parseInt(amount) : null,
+                 price: txType === 'out' ? parseInt(amount) : null,
+                 qty: 1
+               };
+
+               setDebts([...debts, newDebt]);
+               setTransactions([...transactions, newTx]);
+
+               if (BASE_URL) {
+                  fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newDebt) }).catch(console.error);
+                  fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+               }
+
+               navigate('debts', { tab: type });
+             };
+
+             return (
+               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
+                 <div className="flex items-center gap-3">
+                  <button onClick={() => navigate('debts', { tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <h2 className="text-xl font-bold text-slate-800">Catat {type === 'utang' ? 'Utang Baru' : 'Piutang Baru'}</h2>
+                 </div>
+
+                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+                   <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                     <button type="button" onClick={() => setType('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Saya Berutang</button>
+                     <button type="button" onClick={() => setType('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'piutang' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Saya Beri Piutang</button>
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pihak/Orang</label>
+                     <input type="text" value={person} onChange={e => setPerson(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-slate-50" placeholder="Cth: Budi, Bank X" />
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah (Rp)</label>
+                     <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-slate-50" placeholder="0" />
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tgl Dibuat</label>
+                        <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-slate-50 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Estimasi Lunas</label>
+                        <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all bg-rose-50 text-sm" />
+                      </div>
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-2">Foto Perjanjian / Bukti (Opsional)</label>
+                     <div className="flex flex-wrap gap-3">
+                         {agreementPhotos.map((p, i) => (
+                           <div key={i} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden group">
+                               <img src={p} alt="Preview" className="w-full h-full object-cover" />
+                               <button type="button" onClick={() => setAgreementPhotos(agreementPhotos.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-white/90 text-rose-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"><IconX /></button>
+                           </div>
+                         ))}
+                         <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-500 hover:bg-indigo-50 transition-all cursor-pointer">
+                           <IconCamera />
+                           <span className="text-[10px] font-medium mt-1">Upload</span>
+                           <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setAgreementPhotos, agreementPhotos)} />
+                         </label>
+                     </div>
+                   </div>
+
+                   <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all mt-4">
+                     Simpan Data
+                   </button>
+                 </form>
+               </div>
+             );
+           };
+
+           // 11. Debt Detail & Settlement
+           const DebtDetail = () => {
+             const debt = debts.find(d => d.id === viewParams.id);
+             if (!debt) return <div>Data not found</div>;
+
+             const [isSettling, setIsSettling] = useState(false);
+             const [settledDate, setSettledDate] = useState(new Date().toISOString().split('T')[0]);
+             const [paymentPhotos, setPaymentPhotos] = useState([]);
+
+             const handleSettle = () => {
+                const updatedDebt = { ...debt, status: 'paid', settledDate, paymentPhotos };
+                
+                const txType = debt.type === 'utang' ? 'out' : 'in';
+                const txDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.person}` : `Penerimaan Lunas dari ${debt.person}`;
+                const newTx = {
+                  id: generateTxId(),
+                  type: txType,
+                  date: settledDate,
+                  desc: txDesc,
+                  amount: txType === 'in' ? parseInt(debt.amount) : null,
+                  price: txType === 'out' ? parseInt(debt.amount) : null,
+                  qty: 1
+                };
+
+                setDebts(debts.map(d => d.id === debt.id ? updatedDebt : d));
+                setTransactions([...transactions, newTx]);
+
+                if (BASE_URL) {
+                   fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedDebt) }).catch(console.error);
+                   fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+                }
+
+                setIsSettling(false);
+             };
+
+             return (
+               <div className="space-y-6 pb-20 sm:pb-6 fade-in max-w-lg mx-auto">
+                 <div className="flex items-center gap-3">
+                   <button onClick={() => navigate('debts', { tab: debt.type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                   <h2 className="text-xl font-bold text-slate-800">Detail {debt.type === 'utang' ? 'Utang' : 'Piutang'}</h2>
+                 </div>
+
+                 <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+                   <div className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                         <div className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider inline-block ${debt.status === 'active' ? 'bg-rose-50 text-rose-600' : 'bg-teal-50 text-teal-600'}`}>
+                            {debt.status === 'active' ? 'Belum Lunas' : 'Sudah Lunas'}
+                         </div>
+                         <div className="text-right">
+                           <p className="text-xs text-slate-400">Total Nominal</p>
+                           <p className="text-2xl font-bold text-slate-800">{formatIDR(debt.amount)}</p>
+                         </div>
+                      </div>
+                      
+                      <h2 className="text-xl font-bold text-slate-800 mb-4">{debt.person}</h2>
+                      
+                      <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 text-sm">
+                         <div>
+                            <span className="block text-xs text-slate-400 mb-1">Tanggal Dibuat</span>
+                            <span className="font-medium text-slate-700">{formatDate(debt.date)}</span>
+                         </div>
+                         <div>
+                            <span className="block text-xs text-slate-400 mb-1">Jatuh Tempo</span>
+                            <span className="font-medium text-rose-600">{formatDate(debt.dueDate)}</span>
+                         </div>
+                         {debt.status === 'paid' && (
+                           <div className="col-span-2 mt-2">
+                              <span className="block text-xs text-slate-400 mb-1">Dilunasi Pada</span>
+                              <span className="font-bold text-teal-600">{formatDate(debt.settledDate)}</span>
+                           </div>
+                         )}
+                      </div>
+                   </div>
+                 </div>
+
+                 {debt.agreementPhotos && debt.agreementPhotos.length > 0 && (
+                    <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                        <h3 className="text-sm font-bold text-slate-700 mb-3">Foto Bukti / Perjanjian</h3>
+                        <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
+                            {debt.agreementPhotos.map((p, i) => (
+                                <img key={i} src={p} alt={`Agreement ${i}`} className="w-32 h-32 object-cover rounded-2xl snap-center flex-shrink-0 border border-slate-100 shadow-sm" />
+                            ))}
+                        </div>
+                    </div>
+                 )}
+
+                 {debt.paymentPhotos && debt.paymentPhotos.length > 0 && (
+                    <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 border-l-4 border-l-teal-500">
+                        <h3 className="text-sm font-bold text-slate-700 mb-3">Foto Bukti Pelunasan</h3>
+                        <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
+                            {debt.paymentPhotos.map((p, i) => (
+                                <img key={i} src={p} alt={`Payment ${i}`} className="w-32 h-32 object-cover rounded-2xl snap-center flex-shrink-0 border border-slate-100 shadow-sm" />
+                            ))}
+                        </div>
+                    </div>
+                 )}
+
+                 {debt.status === 'active' && !isSettling && (
+                    <button onClick={() => setIsSettling(true)} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-teal-200 transition-all mt-4">
+                       Tandai Sudah Lunas
+                    </button>
+                 )}
+
+                 {isSettling && (
+                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner mt-4">
+                       <h3 className="font-bold text-slate-800 mb-4">Konfirmasi Pelunasan</h3>
+                       
+                       <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Pelunasan</label>
+                            <input type="date" value={settledDate} onChange={e => setSettledDate(e.target.value)} required className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-white" />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Upload Bukti Transfer / Pembayaran</label>
+                            <div className="flex flex-wrap gap-3">
+                                {paymentPhotos.map((p, i) => (
+                                  <div key={i} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden group">
+                                      <img src={p} alt="Preview" className="w-full h-full object-cover" />
+                                      <button type="button" onClick={() => setPaymentPhotos(paymentPhotos.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-white/90 text-rose-500 rounded-md"><IconX /></button>
+                                  </div>
+                                ))}
+                                <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-400 flex flex-col items-center justify-center text-slate-500 hover:text-teal-600 hover:border-teal-500 hover:bg-teal-50 transition-all cursor-pointer bg-white">
+                                  <IconCamera />
+                                  <span className="text-[10px] font-medium mt-1">Upload</span>
+                                  <input type="file" multiple accept="image/*" className="hidden" onChange={e => handlePhotoUpload(e, setPaymentPhotos, paymentPhotos)} />
+                                </label>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 pt-2">
+                             <button onClick={() => setIsSettling(false)} className="flex-1 py-3 font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-100">Batal</button>
+                             <button onClick={handleSettle} className="flex-1 py-3 font-bold text-white bg-teal-600 rounded-xl shadow-lg hover:bg-teal-700">Simpan Pelunasan</button>
+                          </div>
+                       </div>
+                    </div>
+                 )}
+               </div>
+             );
+           };
 
           // MAIN RENDER
           return (
@@ -1419,6 +1766,7 @@
                     <button onClick={() => navigate('dashboard')} className={`font-medium transition-colors ${currentView === 'dashboard' ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Dashboard</button>
                     <button onClick={() => navigate('materials')} className={`font-medium transition-colors ${currentView === 'materials' ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Materials</button>
                     <button onClick={() => navigate('places')} className={`font-medium transition-colors ${currentView === 'places' ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Vendors</button>
+                    <button onClick={() => navigate('debts')} className={`font-medium transition-colors ${['debts', 'add_debt', 'debt_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>Utang/Piutang</button>
                   </nav>
                 </div>
               </header>
@@ -1444,6 +1792,9 @@
                 {currentView === 'add_material' && <AddMaterial />}
                 {currentView === 'add_place' && <AddPlace />}
                 {currentView === 'place_detail' && <PlaceDetail />}
+                {currentView === 'debts' && <DebtList />}
+                {currentView === 'add_debt' && <AddDebt />}
+                {currentView === 'debt_detail' && <DebtDetail />}
               </main>
 
               {/* Mobile Bottom Navigation */}
@@ -1459,6 +1810,10 @@
                 <button onClick={() => navigate('places')} className={`flex flex-col items-center gap-1 ${['places', 'place_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
                    <IconMapPin />
                    <span className="text-[10px] font-medium">Vendors</span>
+                </button>
+                <button onClick={() => navigate('debts')} className={`flex flex-col items-center gap-1 ${['debts', 'add_debt', 'debt_detail'].includes(currentView) ? 'text-teal-600' : 'text-slate-400'}`}>
+                   <IconUsers />
+                   <span className="text-[10px] font-medium">Utang</span>
                 </button>
               </nav>
 
