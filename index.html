@@ -1566,7 +1566,7 @@
 
            // 11. Debt Detail & Settlement
            const DebtDetail = () => {
-             const debt = debts.find(d => d.id === viewParams.id);
+             const debt = (debts || []).find(d => d && d.id === viewParams.id);
              if (!debt) return <div>Data not found</div>;
 
              const [isSettling, setIsSettling] = useState(false);
@@ -1614,34 +1614,6 @@
 
                 setDebts(prev => prev.map(d => d.id === debt.id ? updatedDebt : d));
                 setTransactions(prev => [...prev, newTx]);
-
-                if (BASE_URL) {
-                   const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
-                   fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
-                   fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
-                }
-                setIsSettling(false);
-             };
-
-             const handleSettle = () => {
-                const updatedDebt = { ...debt, status: 'paid', settledDate, settlementPhotos };
-                
-                const txType = debt.type === 'utang' ? 'out' : 'in';
-                const adminAmt = parseInt(adminFee) || 0;
-                
-                // FORMAT NAMA PELUNASAN
-                const baseDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Pelunasan Piutang oleh ${debt.personName}`;
-                const finalDesc = (debt.type === 'utang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
-
-                const newTx = {
-                  id: generateTxId(), type: txType, date: settledDate, desc: finalDesc, note: finalDesc,
-                  amount: txType === 'in' ? parseInt(debt.amount) : null, 
-                  price: txType === 'out' ? parseInt(debt.amount) + adminAmt : null, 
-                  qty: 1
-                };
-
-                setDebts(debts.map(d => d.id === debt.id ? updatedDebt : d));
-                setTransactions([...transactions, newTx]);
 
                 if (BASE_URL) {
                    const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
