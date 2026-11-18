@@ -1409,11 +1409,30 @@
                } else {
                  const newId = generateDebtId();
                  const newDebt = { id: newId, ...debtData };
+                 
+                 // --- LOGIC TAMBAHAN: Buat Transaksi Awal Saat Utang/Piutang Dibuat ---
+                 const txType = type === 'utang' ? 'in' : 'out'; // Utang = Uang Masuk, Piutang = Uang Keluar
+                 const txNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
+                 
+                 const newTx = {
+                     id: generateTxId(), 
+                     type: txType, 
+                     date: date, 
+                     note: txNote,
+                     desc: txNote,
+                     amount: txType === 'in' ? parseInt(amount) : null, 
+                     price: txType === 'out' ? parseInt(amount) : null, 
+                     qty: 1
+                 };
+
+                 // Update state debt dan transaksi secara bersamaan
                  setDebts([...debts, newDebt]);
+                 setTransactions([...transactions, newTx]);
                  
                  if (BASE_URL) {
                      const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
                      fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
+                     fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
                  }
                  navigate('debts', { tab: type });
                }
