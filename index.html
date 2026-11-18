@@ -881,20 +881,38 @@
 
             const handleBlur = (setter) => setTimeout(() => setter(false), 200);
 
-            const handleSave = (e) => {
+            const handleSave = async (e) => {
               e.preventDefault();
-              if (!materialId || !totalPrice || !placeId) return;
-
+              if (!materialId || !totalPrice || !placeId) return; // (Untuk AddIncome sesuaikan validasinya)
+            
               const adminAmt = parseInt(adminFee) || 0;
               const adminText = adminAmt > 0 ? `(+Admin ${formatIDR(adminAmt)})` : '';
               const finalNote = [note, adminText].filter(Boolean).join(' ');
-
+            
               const newTx = {
                 id: generateTxId(), type: 'out', date, materialId, qty: parseFloat(qty),
                 pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId, note: finalNote
               };
+              
+              // Update UI sementara
               setTransactions([...transactions, newTx]);
-              if (BASE_URL) fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+              
+              // Tunggu proses database selesai
+              if (BASE_URL) {
+                  try {
+                      const res = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
+                      if (!res.ok) {
+                          const err = await res.json();
+                          alert(`Gagal menyimpan ke database! Error: ${err.error}`);
+                          console.error("DB Error:", err);
+                          return; // Jangan kembali ke dashboard jika gagal
+                      }
+                  } catch (error) {
+                      alert("Gagal koneksi ke server!");
+                      console.error(error);
+                      return;
+                  }
+              }
               navigate('dashboard');
             };
 
