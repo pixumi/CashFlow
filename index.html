@@ -319,10 +319,9 @@
 
           const handleDeleteTx = (txId) => {
              if(!confirm('Yakin ingin menghapus transaksi ini?')) return;
-             setTransactions(transactions.filter(t => t.id !== txId));
+             setTransactions(prev => prev.filter(t => t.id !== txId));
              if (BASE_URL) fetch(`${BASE_URL}/transactions?id=${txId}`, { method: 'DELETE' }).catch(console.error);
           };
-
           const renderTxItem = (tx) => {
             const isOut = tx.type === 'out';
             const mat = materials.find(m => m.id === tx.materialId);
@@ -922,15 +921,14 @@
                 pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId, note: finalNote
               };
               
-              if (isEdit) setTransactions(transactions.map(t => t.id === existing.id ? newTx : t));
-              else setTransactions([...transactions, newTx]);
+              // Menggunakan 'prev' memastikan data UI selalu akurat dan tersinkron
+              setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
 
               if (BASE_URL) {
                   try {
                       const res = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
                       if (!res.ok) {
-                          const err = await res.json();
-                          alert(`Gagal menyimpan! Error: ${err.error}`);
+                          alert(`Gagal menyimpan!`);
                           return;
                       }
                   } catch (error) {
@@ -1294,8 +1292,7 @@
               if (!materialId || !amount) return;
               const newTx = { id: isEdit ? existing.id : generateTxId(), type: 'in', date, materialId, amount: parseInt(amount), note };
               
-              if (isEdit) setTransactions(transactions.map(t => t.id === existing.id ? newTx : t));
-              else setTransactions([...transactions, newTx]);
+              setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
 
               if (BASE_URL) {
                   try {
@@ -1305,7 +1302,7 @@
                           return;
                       }
                   } catch (error) {
-                      alert("Gagal koneksi ke server!");
+                          alert("Gagal koneksi ke server!");
                       return;
                   }
               }
@@ -1452,20 +1449,22 @@
                if (isEdit) {
                  const updatedDebt = { id: existing.id, ...debtData };
                  
-                 // Cari transaksi terkait untuk diupdate nominalnya
-                 const relatedTx = transactions.find(t => (t.note || '').includes(existing.personName) && ((t.note || '').includes('Pencairan Utang') || (t.note || '').includes('Pemberian Piutang')));
-                 
-                 setDebts(debts.map(d => d.id === existing.id ? updatedDebt : d));
+                 setDebts(prev => prev.map(d => d.id === existing.id ? updatedDebt : d));
                  
                  if (BASE_URL) {
                      const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
                      await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
                      
-                     if (relatedTx) {
-                         const updatedTx = { ...relatedTx, amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null, price: updatedDebt.type === 'piutang' ? updatedDebt.amount : null };
-                         setTransactions(transactions.map(t => t.id === relatedTx.id ? updatedTx : t));
-                         await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTx) }).catch(console.error);
-                     }
+                     // Sinkronisasi otomatis ke Transaksi menggunakan prev
+                     setTransactions(prev => {
+                         const relatedTx = prev.find(t => (t.note || '').includes(existing.personName) && ((t.note || '').includes('Pencairan Utang') || (t.note || '').includes('Pemberian Piutang')));
+                         if (relatedTx) {
+                             const updatedTx = { ...relatedTx, amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null, price: updatedDebt.type === 'piutang' ? updatedDebt.amount : null };
+                             fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTx) }).catch(console.error);
+                             return prev.map(t => t.id === relatedTx.id ? updatedTx : t);
+                         }
+                         return prev;
+                     });
                  }
                  navigate('debt_detail', { id: existing.id });
                } else {
@@ -1476,20 +1475,15 @@
                  const txNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
                  
                  const newTx = {
-                     id: generateTxId(), 
-                     type: txType, 
-                     date: date, 
-                     note: txNote,
-                     desc: txNote,
+                     id: generateTxId(), type: txType, date: date, note: txNote, desc: txNote,
                      amount: txType === 'in' ? parseInt(amount) : null, 
                      price: txType === 'out' ? parseInt(amount) : null, 
                      qty: 1
                  };
 
-                 setDebts([...debts, newDebt]);
-                 setTransactions([...transactions, newTx]);
+                 setDebts(prev => [...prev, newDebt]);
+                 setTransactions(prev => [...prev, newTx]);
                  
-                 // Perbaikan: Tunggu fetch selesai sebelum navigate
                  if (BASE_URL) {
                      try {
                          const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
@@ -1579,26 +1573,50 @@
              const handleDelete = () => {
                 if(!confirm('Yakin ingin menghapus catatan utang/piutang ini selamanya?')) return;
                 
-                // Cari transaksi terkait (Transaksi Pembuatan Utang & Pelunasan) berdasarkan string nama
-                const relatedTxs = transactions.filter(t => 
-                   (t.note || '').includes(debt.personName) && 
-                   ((t.note || '').includes('Utang') || (t.note || '').includes('Piutang'))
-                );
+                setDebts(prev => prev.filter(d => d.id !== debt.id));
+                setTransactions(prev => {
+                   const relatedTxs = prev.filter(t => 
+                       (t.note || '').includes(debt.personName) && 
+                       ((t.note || '').includes('Utang') || (t.note || '').includes('Piutang'))
+                   );
+                   if (relatedTxs.length > 0) {
+                       const relatedIds = relatedTxs.map(rt => rt.id);
+                       if (BASE_URL) {
+                           relatedTxs.forEach(rt => fetch(`${BASE_URL}/transactions?id=${rt.id}`, { method: 'DELETE' }).catch(console.error));
+                       }
+                       return prev.filter(t => !relatedIds.includes(t.id));
+                   }
+                   return prev;
+                });
 
-                // Update state frontend
-                setDebts(debts.filter(d => d.id !== debt.id));
-                if (relatedTxs.length > 0) {
-                    setTransactions(transactions.filter(t => !relatedTxs.includes(t)));
-                }
-
-                // Eksekusi API secara background
-                if (BASE_URL) {
-                   fetch(`${BASE_URL}/debts?id=${debt.id}`, { method: 'DELETE' }).catch(console.error);
-                   relatedTxs.forEach(rt => {
-                       fetch(`${BASE_URL}/transactions?id=${rt.id}`, { method: 'DELETE' }).catch(console.error);
-                   });
-                }
+                if (BASE_URL) fetch(`${BASE_URL}/debts?id=${debt.id}`, { method: 'DELETE' }).catch(console.error);
                 navigate('debts', { tab: debt.type });
+             };
+
+             const handleSettle = () => {
+                const updatedDebt = { ...debt, status: 'paid', settledDate, settlementPhotos };
+                const txType = debt.type === 'utang' ? 'out' : 'in';
+                const adminAmt = parseInt(adminFee) || 0;
+                
+                const baseDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Pelunasan Piutang oleh ${debt.personName}`;
+                const finalDesc = (debt.type === 'utang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
+
+                const newTx = {
+                  id: generateTxId(), type: txType, date: settledDate, desc: finalDesc, note: finalDesc,
+                  amount: txType === 'in' ? parseInt(debt.amount) : null, 
+                  price: txType === 'out' ? parseInt(debt.amount) + adminAmt : null, 
+                  qty: 1
+                };
+
+                setDebts(prev => prev.map(d => d.id === debt.id ? updatedDebt : d));
+                setTransactions(prev => [...prev, newTx]);
+
+                if (BASE_URL) {
+                   const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
+                   fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
+                   fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+                }
+                setIsSettling(false);
              };
 
              const handleSettle = () => {
