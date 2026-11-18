@@ -139,13 +139,16 @@
 
         const ExpensePieChart = ({ transactions, materials, formatIDR }) => {
            const [tooltip, setTooltip] = useState(null);
-           const expenses = transactions.filter(t => t.type === 'out');
+           
+           // Pengamanan super ketat agar tidak error saat array kosong/undefined
+           const safeTransactions = Array.isArray(transactions) ? transactions : [];
+           const expenses = safeTransactions.filter(t => t && t.type === 'out');
+           
            if(expenses.length === 0) return <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center text-slate-500 text-sm">Belum ada pengeluaran pada periode ini</div>;
 
            const catTotals = {};
            expenses.forEach(tx => {
                const mat = materials.find(m => m.id === tx.materialId);
-               // Perbaikan: pastikan tx.note terbaca untuk mendeteksi Utang/Piutang di grafik
                const txDescSafe = tx.note || tx.desc || '';
                const cat = mat ? (mat.category || 'Lainnya') : (txDescSafe.includes('Piutang') ? 'Piutang' : (txDescSafe.includes('Utang') ? 'Utang' : 'Lainnya'));
                catTotals[cat] = (catTotals[cat] || 0) + (tx.price || tx.amount || 0);
@@ -170,7 +173,7 @@
                });
            } else {
                entries.forEach(([cat, val]) => {
-                   const percent = val / total;
+                   const percent = total > 0 ? val / total : 0;
                    const startX = 50 + 50 * Math.cos(cumulativeAngle * Math.PI / 180 - Math.PI / 2);
                    const startY = 50 + 50 * Math.sin(cumulativeAngle * Math.PI / 180 - Math.PI / 2);
                    cumulativeAngle += (percent * 360);
@@ -209,7 +212,7 @@
                                  <div className="flex items-center gap-2 mb-0.5">
                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[cat] || colors['Lainnya'] }}></div>
                                    <span className="text-slate-600 text-xs font-medium">{cat}</span>
-                                   <span className="font-bold text-slate-800 text-xs ml-auto">{Math.round((val/total)*100)}%</span>
+                                   <span className="font-bold text-slate-800 text-xs ml-auto">{total > 0 ? Math.round((val/total)*100) : 0}%</span>
                                  </div>
                                  <span className="text-slate-400 text-[10px] pl-5">{formatIDR(val)}</span>
                              </div>
@@ -245,25 +248,26 @@
                      const res = await fetch(`${BASE_URL}/${endpoint}`);
                      const text = await res.text();
                      try { return JSON.parse(text); } 
-                     catch (e) { console.error(`Gagal parsing JSON dari /${endpoint}:`, text); return null; }
-                 } catch (err) { console.error(`Gagal Fetch dari /${endpoint}:`, err); return null; }
+                     catch (e) { return { success: false, data: [] }; }
+                 } catch (err) { return { success: false, data: [] }; }
              };
 
              Promise.all([
                  fetchSafe('categories'), fetchSafe('materials'), fetchSafe('places'), fetchSafe('transactions'), fetchSafe('debts')
              ]).then(([c, m, p, t, d]) => {
-                 if (c?.success && c.data.length > 0) setCategories(c.data);
-                 else setCategories([
-                    {id: 'CAT-1', name: 'Motor', type: 'out'}, {id: 'CAT-2', name: 'Bensin', type: 'out'}, 
-                    {id: 'CAT-3', name: 'Hobby', type: 'out'}, {id: 'CAT-4', name: 'Internet', type: 'out'}, 
-                    {id: 'CAT-5', name: 'Jajan', type: 'out'}, {id: 'CAT-6', name: 'Handphone', type: 'out'},
-                    {id: 'CAT-7', name: 'Gaji Utama', type: 'in'}, {id: 'CAT-8', name: 'Bonus Tambahan', type: 'in'}
-                 ]);
-
-                 if (m?.success) setMaterials(m.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
-                 if (p?.success) setPlaces(p.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
-                 if (t?.success) setTransactions(t.data);
-                 if (d?.success) setDebts(d.data.map(x => ({ ...x, agreementPhotos: x.agreementPhotos ? JSON.parse(x.agreementPhotos) : [], settlementPhotos: x.settlementPhotos ? JSON.parse(x.settlementPhotos) : [] })));
+                 if (c?.success && Array.isArray(c.data) && c.data.length > 0) setCategories(c.data);
+                 
+                 if (m?.success && Array.isArray(m.data)) setMaterials(m.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
+                 else setMaterials([]);
+                 
+                 if (p?.success && Array.isArray(p.data)) setPlaces(p.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
+                 else setPlaces([]);
+                 
+                 if (t?.success && Array.isArray(t.data)) setTransactions(t.data.filter(Boolean));
+                 else setTransactions([]);
+                 
+                 if (d?.success && Array.isArray(d.data)) setDebts(d.data.filter(Boolean).map(x => ({ ...x, agreementPhotos: x.agreementPhotos ? JSON.parse(x.agreementPhotos) : [], settlementPhotos: x.settlementPhotos ? JSON.parse(x.settlementPhotos) : [] })));
+                 else setDebts([]);
              });
           }, []);
 
@@ -365,14 +369,14 @@
           };
 
           // --- DERIVED DATA ---
-          const totalIn = transactions.filter(t => t.type === 'in').reduce((acc, curr) => acc + (curr.amount || 0), 0);
-          const totalOut = transactions.filter(t => t.type === 'out').reduce((acc, curr) => acc + (curr.price || curr.amount || 0), 0);
+          const totalIn = (transactions || []).filter(t => t && t.type === 'in').reduce((acc, curr) => acc + (curr?.amount || 0), 0);
+          const totalOut = (transactions || []).filter(t => t && t.type === 'out').reduce((acc, curr) => acc + (curr?.price || curr?.amount || 0), 0);
           const balance = totalIn - totalOut;
           
-          const activeUtangList = debts.filter(d => d.type === 'utang' && d.status === 'active');
-          const activePiutangList = debts.filter(d => d.type === 'piutang' && d.status === 'active');
-          const totalActiveUtang = activeUtangList.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-          const totalActivePiutang = activePiutangList.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+          const activeUtangList = (debts || []).filter(d => d && d.type === 'utang' && d.status === 'active');
+          const activePiutangList = (debts || []).filter(d => d && d.type === 'piutang' && d.status === 'active');
+          const totalActiveUtang = activeUtangList.reduce((acc, curr) => acc + (curr?.amount || 0), 0);
+          const totalActivePiutang = activePiutangList.reduce((acc, curr) => acc + (curr?.amount || 0), 0);
 
           // --- SUB-COMPONENTS (PAGES) ---
 
