@@ -145,7 +145,8 @@
            const catTotals = {};
            expenses.forEach(tx => {
                const mat = materials.find(m => m.id === tx.materialId);
-               const txDescSafe = tx.desc || '';
+               // Perbaikan: pastikan tx.note terbaca untuk mendeteksi Utang/Piutang di grafik
+               const txDescSafe = tx.note || tx.desc || '';
                const cat = mat ? (mat.category || 'Lainnya') : (txDescSafe.includes('Piutang') ? 'Piutang' : (txDescSafe.includes('Utang') ? 'Utang' : 'Lainnya'));
                catTotals[cat] = (catTotals[cat] || 0) + (tx.price || tx.amount || 0);
            });
@@ -1435,7 +1436,8 @@
              const [dueDate, setDueDate] = useState(existing?.dueDate || '');
              const [agreementPhotos, setAgreementPhotos] = useState(existing?.agreementPhotos || []);
 
-             const handleSave = (e) => {
+             // Perbaikan: Ubah jadi async agar menunggu API selesai
+             const handleSave = async (e) => {
                e.preventDefault();
                if (!personName || !amount) return;
                
@@ -1449,19 +1451,28 @@
 
                if (isEdit) {
                  const updatedDebt = { id: existing.id, ...debtData };
+                 
+                 // Cari transaksi terkait untuk diupdate nominalnya
+                 const relatedTx = transactions.find(t => (t.note || '').includes(existing.personName) && ((t.note || '').includes('Pencairan Utang') || (t.note || '').includes('Pemberian Piutang')));
+                 
                  setDebts(debts.map(d => d.id === existing.id ? updatedDebt : d));
                  
                  if (BASE_URL) {
                      const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
-                     fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
+                     await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
+                     
+                     if (relatedTx) {
+                         const updatedTx = { ...relatedTx, amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null, price: updatedDebt.type === 'piutang' ? updatedDebt.amount : null };
+                         setTransactions(transactions.map(t => t.id === relatedTx.id ? updatedTx : t));
+                         await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTx) }).catch(console.error);
+                     }
                  }
                  navigate('debt_detail', { id: existing.id });
                } else {
                  const newId = generateDebtId();
                  const newDebt = { id: newId, ...debtData };
                  
-                 // --- LOGIC TAMBAHAN: Buat Transaksi Awal Saat Utang/Piutang Dibuat ---
-                 const txType = type === 'utang' ? 'in' : 'out'; // Utang = Uang Masuk, Piutang = Uang Keluar
+                 const txType = type === 'utang' ? 'in' : 'out'; 
                  const txNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
                  
                  const newTx = {
@@ -1475,14 +1486,18 @@
                      qty: 1
                  };
 
-                 // Update state debt dan transaksi secara bersamaan
                  setDebts([...debts, newDebt]);
                  setTransactions([...transactions, newTx]);
                  
+                 // Perbaikan: Tunggu fetch selesai sebelum navigate
                  if (BASE_URL) {
-                     const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
-                     fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
-                     fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
+                     try {
+                         const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
+                         await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                         await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
+                     } catch (err) {
+                         console.error("Gagal simpan ke DB:", err);
+                     }
                  }
                  navigate('debts', { tab: type });
                }
@@ -1544,7 +1559,7 @@
                    </div>
 
                    <button type="submit" className={`w-full text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all ${type === 'utang' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-600 hover:bg-teal-700'}`}>
-                     Simpan {type === 'utang' ? 'Utang' : 'Piutang'}
+                     {isEdit ? 'Simpan Perubahan' : `Simpan ${type === 'utang' ? 'Utang' : 'Piutang'}`}
                    </button>
                  </form>
                </div>
