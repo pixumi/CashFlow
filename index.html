@@ -326,6 +326,39 @@
              setTransactions(prev => prev.filter(t => t.id !== txId));
              if (BASE_URL) fetch(`${BASE_URL}/transactions?id=${txId}`, { method: 'DELETE' }).catch(console.error);
           };
+          const handleEditTx = (tx) => {
+            const isOut = tx.type === 'out';
+            const txNote = tx.note || tx.desc || '';
+            const isDebtTx = !tx.materialId && (txNote.includes('Utang') || txNote.includes('Piutang'));
+
+            if (isDebtTx) {
+              const debtType = txNote.includes('Piutang') ? 'piutang' : 'utang';
+              const isSettlement = txNote.includes('Pelunasan');
+              const txVal = isOut ? (tx.price || tx.amount || 0) : (tx.amount || 0);
+
+              let candidates = (debts || []).filter(d => d && d.type === debtType && d.personName && (txNote.endsWith(` ${d.personName}`) || txNote.includes(` ${d.personName} (`)));
+              if (candidates.length === 0) {
+                candidates = (debts || []).filter(d => d && d.type === debtType && d.personName && txNote.includes(d.personName));
+              }
+
+              let matchedDebt = null;
+              if (isSettlement) {
+                matchedDebt = candidates.find(d => d.settledDate === tx.date) || candidates[0];
+              } else {
+                matchedDebt = candidates.find(d => d.date === tx.date && Number(d.amount) === Number(txVal)) || candidates.find(d => d.date === tx.date) || candidates[0];
+              }
+
+              if (matchedDebt) {
+                navigate('add_debt', { editId: matchedDebt.id });
+              } else {
+                alert('Data Utang/Piutang untuk transaksi ini tidak ditemukan.');
+              }
+              return;
+            }
+
+            navigate(isOut ? 'add_expense' : 'add_income', { editId: tx.id });
+          };
+
           const renderTxItem = (tx) => {
             const isOut = tx.type === 'out';
             const mat = materials.find(m => m.id === tx.materialId);
@@ -336,23 +369,18 @@
 
             return (
               <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className={`p-3 rounded-2xl flex-shrink-0 ${isOut ? 'bg-rose-50 text-rose-500' : 'bg-teal-50 text-teal-500'}`}>
-                    {isOut ? <IconBox /> : <IconWallet />}
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className="font-semibold text-slate-800 text-sm whitespace-nowrap text-ellipsis overflow-hidden">
-                      {mat ? (
-                         <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
-                            {txTitle}
-                         </button>
-                      ) : (
-                         txTitle
-                      )}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat && mat.category ? `• ${mat.category}` : ''}</p>
-                    {showNote && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
-                  </div>
+                <div className="overflow-hidden">
+                  <p className="font-semibold text-slate-800 text-sm whitespace-nowrap text-ellipsis overflow-hidden">
+                    {mat ? (
+                       <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
+                          {txTitle}
+                       </button>
+                    ) : (
+                       txTitle
+                    )}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat && mat.category ? `• ${mat.category}` : ''}</p>
+                  {showNote && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
                   <div className={`font-semibold whitespace-nowrap ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
@@ -360,7 +388,7 @@
                   </div>
                   
                   <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button onClick={() => navigate(isOut ? 'add_expense' : 'add_income', { editId: tx.id })} className="text-[10px] text-teal-600 bg-teal-50 px-2 py-1 rounded hover:bg-teal-100 font-medium transition-colors">Edit</button>
+                     <button onClick={() => handleEditTx(tx)} className="text-[10px] text-teal-600 bg-teal-50 px-2 py-1 rounded hover:bg-teal-100 font-medium transition-colors">Edit</button>
                      <button onClick={() => handleDeleteTx(tx.id)} className="text-[10px] text-rose-600 bg-rose-50 px-2 py-1 rounded hover:bg-rose-100 font-medium transition-colors">Hapus</button>
                   </div>
                 </div>
@@ -1428,22 +1456,40 @@
            // 10. Add Debt
            const AddDebt = () => {
              const isEdit = !!viewParams.editId;
-             const existing = isEdit ? debts.find(d => d.id === viewParams.editId) : null;
+             const existing = isEdit ? (debts || []).find(d => d && d.id === viewParams.editId) : null;
+             const existingRelatedTx = isEdit && existing
+               ? (transactions || []).find(t =>
+                   t &&
+                   (t.note || '').includes(existing.personName) &&
+                   ((t.note || '').includes('Pencairan Utang') || (t.note || '').includes('Pemberian Piutang')) &&
+                   t.date === existing.date
+                 ) || (transactions || []).find(t =>
+                   t &&
+                   (t.note || '').includes(existing.personName) &&
+                   ((t.note || '').includes('Pencairan Utang') || (t.note || '').includes('Pemberian Piutang'))
+                 )
+               : null;
+             const initialAdminFee = (isEdit && existing?.type === 'piutang' && existingRelatedTx && existingRelatedTx.price && existing.amount)
+               ? (Math.max(0, Number(existingRelatedTx.price) - Number(existing.amount)) || '')
+               : '';
              
              const [type, setType] = useState(existing?.type || viewParams.type || 'utang');
              const [personName, setPersonName] = useState(existing?.personName || '');
              const [amount, setAmount] = useState(existing?.amount || '');
+             const [adminFee, setAdminFee] = useState(initialAdminFee);
              const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
              const [dueDate, setDueDate] = useState(existing?.dueDate || '');
              const [agreementPhotos, setAgreementPhotos] = useState(existing?.agreementPhotos || []);
 
-             // Perbaikan: Ubah jadi async agar menunggu API selesai
              const handleSave = async (e) => {
                e.preventDefault();
-               if (!personName || !amount) return;
+               if (!personName || !amount || (isEdit && !existing)) return;
                
+               const amountNum = parseInt(amount) || 0;
+               const adminAmt = type === 'piutang' ? (parseInt(adminFee) || 0) : 0;
+
                const debtData = {
-                 type, personName, amount: parseInt(amount), date, dueDate,
+                 type, personName, amount: amountNum, date, dueDate,
                  status: existing?.status || 'active',
                  agreementPhotos: agreementPhotos,
                  settlementPhotos: existing?.settlementPhotos || [],
@@ -1452,23 +1498,31 @@
 
                if (isEdit) {
                  const updatedDebt = { id: existing.id, ...debtData };
+                 const baseNote = updatedDebt.type === 'utang' ? `Pencairan Utang dari ${updatedDebt.personName}` : `Pemberian Piutang ke ${updatedDebt.personName}`;
+                 const updatedNote = (updatedDebt.type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
                  
                  setDebts(prev => prev.map(d => d.id === existing.id ? updatedDebt : d));
+                 
+                 let updatedTxToSync = null;
+                 if (existingRelatedTx) {
+                     updatedTxToSync = {
+                         ...existingRelatedTx,
+                         date: updatedDebt.date,
+                         note: updatedNote,
+                         desc: updatedNote,
+                         amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null,
+                         price: updatedDebt.type === 'piutang' ? updatedDebt.amount + adminAmt : null
+                     };
+                     setTransactions(prev => prev.map(t => t.id === existingRelatedTx.id ? updatedTxToSync : t));
+                 }
                  
                  if (BASE_URL) {
                      const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
                      await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
                      
-                     // Sinkronisasi otomatis ke Transaksi menggunakan prev
-                     setTransactions(prev => {
-                         const relatedTx = prev.find(t => (t.note || '').includes(existing.personName) && ((t.note || '').includes('Pencairan Utang') || (t.note || '').includes('Pemberian Piutang')));
-                         if (relatedTx) {
-                             const updatedTx = { ...relatedTx, amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null, price: updatedDebt.type === 'piutang' ? updatedDebt.amount : null };
-                             fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTx) }).catch(console.error);
-                             return prev.map(t => t.id === relatedTx.id ? updatedTx : t);
-                         }
-                         return prev;
-                     });
+                     if (updatedTxToSync) {
+                         await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTxToSync) }).catch(console.error);
+                     }
                  }
                  navigate('debt_detail', { id: existing.id });
                } else {
@@ -1476,12 +1530,13 @@
                  const newDebt = { id: newId, ...debtData };
                  
                  const txType = type === 'utang' ? 'in' : 'out'; 
-                 const txNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
+                 const baseNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
+                 const txNote = (type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
                  
                  const newTx = {
                      id: generateTxId(), type: txType, date: date, note: txNote, desc: txNote,
-                     amount: txType === 'in' ? parseInt(amount) : null, 
-                     price: txType === 'out' ? parseInt(amount) : null, 
+                     amount: txType === 'in' ? amountNum : null, 
+                     price: txType === 'out' ? amountNum + adminAmt : null, 
                      qty: 1
                  };
 
@@ -1504,14 +1559,14 @@
              return (
                <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
-                   <button onClick={() => navigate(isEdit ? 'debt_detail' : 'debts', { id: isEdit ? existing.id : undefined, tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                   <button onClick={() => navigate(isEdit ? 'debt_detail' : 'debts', { id: isEdit ? existing?.id : undefined, tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                    <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Catatan' : 'Catat Baru'}</h2>
                  </div>
                  
                  <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
                    {!isEdit && (
                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
-                       <button type="button" onClick={() => setType('utang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Utang (Pinjam)</button>
+                       <button type="button" onClick={() => { setType('utang'); setAdminFee(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'utang' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Utang (Pinjam)</button>
                        <button type="button" onClick={() => setType('piutang')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${type === 'piutang' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}>Piutang (Beri)</button>
                      </div>
                    )}
@@ -1528,6 +1583,21 @@
                        <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required className="w-full border border-slate-200 rounded-xl pl-12 pr-4 py-3 bg-slate-50" placeholder="0" />
                      </div>
                    </div>
+
+                   {type === 'piutang' && (
+                     <div>
+                       <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Admin (Opsional)</label>
+                       <div className="relative">
+                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><span className="text-slate-500 font-medium">Rp</span></div>
+                         <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-12 pr-4 py-3 bg-slate-50" placeholder="0" />
+                       </div>
+                       {parseInt(adminFee) > 0 && (
+                         <p className="text-[11px] text-slate-400 mt-1">
+                           Total keluar dari saldo: <span className="font-semibold text-slate-600">{formatIDR((parseInt(amount) || 0) + (parseInt(adminFee) || 0))}</span> (Pokok piutang tetap {formatIDR(parseInt(amount) || 0)})
+                         </p>
+                       )}
+                     </div>
+                   )}
 
                    <div className="grid grid-cols-2 gap-4">
                      <div>
