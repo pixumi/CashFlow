@@ -414,12 +414,7 @@
             });
           };
 
-          const handleDeleteTx = (txId) => {
-             if(!confirm('Yakin ingin menghapus transaksi ini?')) return;
-             setTransactions(prev => prev.filter(t => t.id !== txId));
-             if (BASE_URL) fetch(`${BASE_URL}/transactions?id=${txId}`, { method: 'DELETE' }).catch(console.error);
-          };
-          const handleEditTx = (tx) => {
+          const openTxDetail = (tx) => {
             const isOut = tx.type === 'out';
             const txNote = tx.note || tx.desc || '';
             const isDebtTx = !tx.materialId && (txNote.includes('Utang') || txNote.includes('Piutang'));
@@ -442,49 +437,38 @@
               }
 
               if (matchedDebt) {
-                navigate('add_debt', { editId: matchedDebt.id });
-              } else {
-                alert('Data Utang/Piutang untuk transaksi ini tidak ditemukan.');
+                navigate('debt_detail', { id: matchedDebt.id });
+                return;
               }
-              return;
             }
 
-            navigate(isOut ? 'add_expense' : 'add_income', { editId: tx.id });
+            navigate('transaction_detail', { id: tx.id, returnTo: currentView, returnParams: viewParams });
           };
 
           const renderTxItem = (tx) => {
             const isOut = tx.type === 'out';
-            const mat = materials.find(m => m.id === tx.materialId);
+            const mat = (materials || []).find(m => m && m.id === tx.materialId);
             
             // Logika prioritas nama transaksi
             const txTitle = mat ? (mat.desc || 'Tanpa Nama') : (tx.note || tx.desc || 'Transaksi');
             const showNote = tx.note && tx.note !== txTitle; 
 
             return (
-              <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+              <div key={tx.id} onClick={() => openTxDetail(tx)} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer">
                 <div className="overflow-hidden">
                   <p className="font-semibold text-slate-800 text-sm whitespace-nowrap text-ellipsis overflow-hidden">
-                    {mat ? (
-                       <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
-                          {txTitle}
-                       </button>
-                    ) : (
-                       txTitle
-                    )}
+                    {txTitle}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(tx.date)} {mat && mat.category ? `• ${mat.category}` : ''}</p>
                   {showNote && <p className="text-[11px] text-slate-500 italic mt-0.5 whitespace-normal break-words line-clamp-2">"{tx.note}"</p>}
-                  <TxPhotoStrip photos={tx.photos} />
+                  {tx.photos && tx.photos.length > 0 && (
+                    <div onClick={e => e.stopPropagation()}>
+                      <TxPhotoStrip photos={tx.photos} />
+                    </div>
+                  )}
                 </div>
-                <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
-                  <div className={`font-semibold whitespace-nowrap ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
-                    {isOut ? '-' : '+'}{formatIDR(isOut ? (tx.price || tx.amount || 0) : (tx.amount || 0))}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button onClick={() => handleEditTx(tx)} className="text-[10px] text-teal-600 bg-teal-50 px-2 py-1 rounded hover:bg-teal-100 font-medium transition-colors">Edit</button>
-                     <button onClick={() => handleDeleteTx(tx.id)} className="text-[10px] text-rose-600 bg-rose-50 px-2 py-1 rounded hover:bg-rose-100 font-medium transition-colors">Hapus</button>
-                  </div>
+                <div className={`font-semibold whitespace-nowrap flex-shrink-0 ml-2 ${isOut ? 'text-rose-600' : 'text-teal-600'}`}>
+                  {isOut ? '-' : '+'}{formatIDR(isOut ? (tx.price || tx.amount || 0) : (tx.amount || 0))}
                 </div>
               </div>
             );
@@ -672,6 +656,146 @@
             );
           };
 
+           // 1.6 Transaction Detail
+          const TransactionDetail = () => {
+            const tx = (transactions || []).find(t => t && t.id === viewParams.id);
+            const returnTo = viewParams.returnTo || 'dashboard';
+            const returnParams = viewParams.returnParams || {};
+
+            if (!tx) {
+              return (
+                <div className="space-y-6 pb-20 sm:pb-6 fade-in max-w-lg mx-auto">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => navigate(returnTo, returnParams)} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                    <h2 className="text-xl font-bold text-slate-800">Detail Transaksi</h2>
+                  </div>
+                  <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center text-slate-500 text-sm">
+                    Data transaksi tidak ditemukan.
+                  </div>
+                </div>
+              );
+            }
+
+            const isOut = tx.type === 'out';
+            const mat = (materials || []).find(m => m && m.id === tx.materialId);
+            const place = (places || []).find(p => p && p.id === tx.placeId);
+            const txTitle = mat ? (mat.desc || 'Tanpa Nama') : (tx.note || tx.desc || 'Transaksi');
+            const txTotal = isOut ? (tx.price || tx.amount || 0) : (tx.amount || 0);
+            const txNoteText = tx.note || tx.desc || '';
+            const isOrphanDebt = !tx.materialId && (txNoteText.includes('Utang') || txNoteText.includes('Piutang'));
+
+            const handleDelete = () => {
+              if (!confirm('Yakin ingin menghapus transaksi ini selamanya?')) return;
+              setTransactions(prev => prev.filter(t => t.id !== tx.id));
+              if (BASE_URL) fetch(`${BASE_URL}/transactions?id=${tx.id}`, { method: 'DELETE' }).catch(console.error);
+              navigate(returnTo, returnParams);
+            };
+
+            return (
+              <div className="space-y-6 pb-20 sm:pb-6 fade-in max-w-lg mx-auto">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => navigate(returnTo, returnParams)} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                    <h2 className="text-xl font-bold text-slate-800">Detail {isOut ? 'Pengeluaran' : 'Pemasukan'}</h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleDelete} className="p-2 bg-white rounded-xl shadow-sm text-rose-500 hover:bg-rose-50 border border-rose-100 transition-colors" title="Hapus">
+                      <IconX />
+                    </button>
+                    {!isOrphanDebt && (
+                      <button onClick={() => navigate(isOut ? 'add_expense' : 'add_income', { editId: tx.id })} className="p-2 bg-white rounded-xl shadow-sm text-teal-600 hover:bg-teal-50 border border-teal-100 flex items-center gap-2 text-sm font-medium transition-colors">
+                        <IconEdit /> <span className="hidden sm:inline">Edit</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider inline-block ${isOut ? 'bg-rose-50 text-rose-600' : 'bg-teal-50 text-teal-600'}`}>
+                        {isOut ? 'Pengeluaran' : 'Pemasukan'}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400">Total Nominal</p>
+                        <p className="text-2xl font-bold text-slate-800">{formatIDR(txTotal)}</p>
+                      </div>
+                    </div>
+
+                    <h2 className="text-xl font-bold text-slate-800 mb-4">
+                      {mat ? (
+                        <button onClick={() => navigate('material_detail', { id: mat.id })} className="hover:text-teal-600 hover:underline text-left cursor-pointer transition-colors">
+                          {txTitle}
+                        </button>
+                      ) : (
+                        txTitle
+                      )}
+                    </h2>
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 text-sm">
+                      <div>
+                        <span className="block text-xs text-slate-400 mb-1">Tanggal Transaksi</span>
+                        <span className="font-medium text-slate-700">{formatDate(tx.date)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-slate-400 mb-1">Kategori</span>
+                        <span className="font-medium text-slate-700">{mat?.category || '-'}</span>
+                      </div>
+
+                      {mat && (
+                        <div>
+                          <span className="block text-xs text-slate-400 mb-1">Kode Material</span>
+                          <button onClick={() => navigate('material_detail', { id: mat.id })} className="font-semibold text-teal-600 hover:underline">
+                            {mat.id}
+                          </button>
+                        </div>
+                      )}
+
+                      {isOut ? (
+                        <>
+                          <div>
+                            <span className="block text-xs text-slate-400 mb-1">Qty</span>
+                            <span className="font-medium text-slate-700">{tx.qty || 1} {mat?.unit || 'Pcs'}</span>
+                          </div>
+                          <div>
+                            <span className="block text-xs text-slate-400 mb-1">Harga Satuan</span>
+                            <span className="font-medium text-slate-700">{formatIDR(tx.pricePerUnit || tx.price || tx.amount || 0)}</span>
+                          </div>
+                          <div>
+                            <span className="block text-xs text-slate-400 mb-1">Tempat Beli</span>
+                            {place ? (
+                              <button onClick={() => navigate('place_detail', { id: place.id })} className="text-teal-600 hover:text-teal-700 font-medium hover:underline inline-flex items-center gap-1">
+                                <IconMapPin /> {place.name}
+                              </button>
+                            ) : (
+                              <span className="font-medium text-slate-700">-</span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <span className="block text-xs text-slate-400 mb-1">Sumber Income</span>
+                          <span className="font-medium text-slate-700">{mat?.source || '-'}</span>
+                        </div>
+                      )}
+
+                      {tx.note && (
+                        <div className="col-span-2 pt-2 border-t border-slate-50">
+                          <span className="block text-xs text-slate-400 mb-1">Catatan</span>
+                          <p className="font-medium text-slate-700 whitespace-pre-wrap break-words">{tx.note}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {tx.photos && tx.photos.length > 0 && (
+                  <PhotoGallery photos={tx.photos} title="Foto Barang / Bukti" />
+                )}
+              </div>
+            );
+          }; 
+            
           // 2. Material Master List
           const MaterialList = () => {
             const [searchTerm, setSearchTerm] = useState('');
@@ -840,13 +964,13 @@
                         {relatedTx.map(tx => {
                           const place = places.find(p => p.id === tx.placeId);
                           return (
-                            <tr key={tx.id} className="hover:bg-slate-50/50">
+                            <tr key={tx.id} onClick={() => openTxDetail(tx)} className="hover:bg-slate-50 cursor-pointer transition-colors">
                               <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{formatDate(tx.date)}</td>
                               {!isIncome && <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{tx.qty || 1} {mat.unit}</td>}
                               <td className={`px-5 py-3 font-bold whitespace-nowrap ${isIncome ? 'text-emerald-600' : 'text-rose-600'}`}>{formatIDR(tx.price || tx.amount)}</td>
                               {!isIncome && (
                                 <td className="px-5 py-3 whitespace-nowrap">
-                                  <button onClick={() => navigate('place_detail', { id: tx.placeId })} className="text-teal-600 hover:text-teal-700 font-medium hover:underline inline-flex items-center gap-1">
+                                  <button onClick={(e) => { e.stopPropagation(); navigate('place_detail', { id: tx.placeId }); }} className="text-teal-600 hover:text-teal-700 font-medium hover:underline inline-flex items-center gap-1">
                                     <IconMapPin /> {place?.name || 'Unknown'}
                                   </button>
                                 </td>
@@ -2159,6 +2283,7 @@
               <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 min-h-[calc(100vh-140px)]">
                 {currentView === 'dashboard' && <Dashboard />}
                 {currentView === 'transaction_list' && <TransactionList />}
+                {currentView === 'transaction_detail' && <TransactionDetail />}  
                 {currentView === 'materials' && <MaterialList />}
                 {currentView === 'material_detail' && <MaterialDetail />}
                 {currentView === 'places' && <PlaceList />}
