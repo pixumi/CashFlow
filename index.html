@@ -242,6 +242,17 @@
                  ]);
                  return;
              }
+
+             const safeParseArray = (val) => {
+                 if (Array.isArray(val)) return val;
+                 if (!val || typeof val !== 'string') return [];
+                 try {
+                     const parsed = JSON.parse(val);
+                     return Array.isArray(parsed) ? parsed : [];
+                 } catch (e) {
+                     return [];
+                 }
+             };
              
              const fetchSafe = async (endpoint) => {
                  try {
@@ -257,16 +268,16 @@
              ]).then(([c, m, p, t, d]) => {
                  if (c?.success && Array.isArray(c.data) && c.data.length > 0) setCategories(c.data);
                  
-                 if (m?.success && Array.isArray(m.data)) setMaterials(m.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
+                 if (m?.success && Array.isArray(m.data)) setMaterials(m.data.filter(Boolean).map(x => ({...x, photos: safeParseArray(x.photos)})));
                  else setMaterials([]);
                  
-                 if (p?.success && Array.isArray(p.data)) setPlaces(p.data.map(x => ({...x, photos: x.photos ? JSON.parse(x.photos) : []})));
+                 if (p?.success && Array.isArray(p.data)) setPlaces(p.data.filter(Boolean).map(x => ({...x, photos: safeParseArray(x.photos)})));
                  else setPlaces([]);
                  
                  if (t?.success && Array.isArray(t.data)) setTransactions(t.data.filter(Boolean));
                  else setTransactions([]);
                  
-                 if (d?.success && Array.isArray(d.data)) setDebts(d.data.filter(Boolean).map(x => ({ ...x, agreementPhotos: x.agreementPhotos ? JSON.parse(x.agreementPhotos) : [], settlementPhotos: x.settlementPhotos ? JSON.parse(x.settlementPhotos) : [] })));
+                 if (d?.success && Array.isArray(d.data)) setDebts(d.data.filter(Boolean).map(x => ({ ...x, agreementPhotos: safeParseArray(x.agreementPhotos), settlementPhotos: safeParseArray(x.settlementPhotos) })));
                  else setDebts([]);
              });
           }, []);
@@ -885,9 +896,12 @@
           // 5. Add Expense Form (Catat Keluar)
           const AddExpense = () => {
             const isEdit = !!viewParams.editId;
-            const existing = isEdit ? transactions.find(t => t.id === viewParams.editId) : null;
+            const existing = isEdit ? (transactions || []).find(t => t && t.id === viewParams.editId) : null;
 
-            const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
+            const now = new Date();
+            const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+
+            const [date, setDate] = useState(existing?.date || todayStr);
             
             const [materialId, setMaterialId] = useState(existing?.materialId || '');
             const [matSearch, setMatSearch] = useState(existing?.materialId || '');
@@ -896,16 +910,89 @@
             const [showDescDropdown, setShowDescDropdown] = useState(false);
 
             const defaultQty = existing?.qty || 1;
+            const defaultTotalPrice = existing?.price !== undefined && existing?.price !== null ? existing.price : '';
+            const defaultPricePerUnit = existing?.pricePerUnit !== undefined && existing?.pricePerUnit !== null
+              ? existing.pricePerUnit
+              : (existing?.price ? Math.round(existing.price / defaultQty) : '');
+
             const [qty, setQty] = useState(defaultQty);
-            const [pricePerUnit, setPricePerUnit] = useState(existing?.pricePerUnit || (existing?.price ? existing.price / defaultQty : ''));
+            const [pricePerUnit, setPricePerUnit] = useState(defaultPricePerUnit);
             const [adminFee, setAdminFee] = useState('');
+            const [totalPrice, setTotalPrice] = useState(defaultTotalPrice);
+            const [lastEdited, setLastEdited] = useState('unit');
             
             const [placeId, setPlaceId] = useState(existing?.placeId || '');
             const [placeSearch, setPlaceSearch] = useState('');
             const [showPlaceDropdown, setShowPlaceDropdown] = useState(false);
             const [note, setNote] = useState(existing?.note || '');
-            
-            const totalPrice = (parseFloat(qty) || 0) * (parseInt(pricePerUnit) || 0) + (parseInt(adminFee) || 0);
+
+            const handleQtyChange = (val) => {
+              setQty(val);
+              const q = parseFloat(val);
+              const adm = parseInt(adminFee) || 0;
+              if (!q || q <= 0) return;
+
+              if (lastEdited === 'total') {
+                if (totalPrice !== '') {
+                  const tot = parseInt(totalPrice) || 0;
+                  setPricePerUnit(Math.round(Math.max(0, tot - adm) / q));
+                }
+              } else {
+                if (pricePerUnit !== '') {
+                  const unit = parseInt(pricePerUnit) || 0;
+                  setTotalPrice(Math.round(q * unit + adm));
+                }
+              }
+            };
+
+            const handlePricePerUnitChange = (val) => {
+              setPricePerUnit(val);
+              setLastEdited('unit');
+              const q = parseFloat(qty) || 0;
+              const adm = parseInt(adminFee) || 0;
+              if (val === '') {
+                setTotalPrice(adm > 0 ? adm : '');
+                return;
+              }
+              const unit = parseInt(val) || 0;
+              setTotalPrice(Math.round(q * unit + adm));
+            };
+
+            const handleAdminFeeChange = (val) => {
+              setAdminFee(val);
+              const q = parseFloat(qty) || 0;
+              const adm = parseInt(val) || 0;
+              if (lastEdited === 'total') {
+                if (totalPrice !== '' && q > 0) {
+                  const tot = parseInt(totalPrice) || 0;
+                  setPricePerUnit(Math.round(Math.max(0, tot - adm) / q));
+                }
+              } else {
+                if (pricePerUnit !== '') {
+                  const unit = parseInt(pricePerUnit) || 0;
+                  setTotalPrice(Math.round(q * unit + adm));
+                } else if (adm > 0) {
+                  setTotalPrice(adm);
+                } else {
+                  setTotalPrice('');
+                }
+              }
+            };
+
+            const handleTotalPriceChange = (val) => {
+              setTotalPrice(val);
+              setLastEdited('total');
+              const q = parseFloat(qty);
+              const adm = parseInt(adminFee) || 0;
+              if (val === '') {
+                setPricePerUnit('');
+                return;
+              }
+              const tot = parseInt(val) || 0;
+              if (q > 0) {
+                setPricePerUnit(Math.round(Math.max(0, tot - adm) / q));
+              }
+            };
 
             useEffect(() => {
               if (existing) {
@@ -938,7 +1025,9 @@
 
             const handleSave = async (e) => {
               e.preventDefault();
-              if (!materialId || !totalPrice || !placeId) return;
+              const finalTotalPrice = parseInt(totalPrice) || 0;
+              const finalPricePerUnit = parseInt(pricePerUnit) || 0;
+              if (!materialId || !finalTotalPrice || !placeId) return;
 
               const adminAmt = parseInt(adminFee) || 0;
               const adminText = adminAmt > 0 ? `(+Admin ${formatIDR(adminAmt)})` : '';
@@ -950,17 +1039,15 @@
 
               const newTx = {
                 id: isEdit ? existing.id : generateTxId(), type: 'out', date, materialId, qty: parseFloat(qty),
-                pricePerUnit: parseInt(pricePerUnit), price: totalPrice, placeId, note: finalNote
+                pricePerUnit: finalPricePerUnit, price: finalTotalPrice, placeId, note: finalNote
               };
-              
-              // Menggunakan 'prev' memastikan data UI selalu akurat dan tersinkron
-              setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
 
               if (BASE_URL) {
                   try {
                       const res = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
                       if (!res.ok) {
-                          alert(`Gagal menyimpan!`);
+                          const err = await res.json().catch(() => ({ error: res.statusText }));
+                          alert(`Gagal menyimpan! Error: ${err.error || res.status}`);
                           return;
                       }
                   } catch (error) {
@@ -968,6 +1055,8 @@
                       return;
                   }
               }
+
+              setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
               navigate('dashboard');
             };
 
@@ -1033,13 +1122,13 @@
                   <div className="grid grid-cols-2 gap-4">
                      <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Qty</label>
-                        <input type="number" step="any" min="0.01" value={qty} onChange={e => setQty(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="1" />
+                        <input type="number" step="any" min="0.01" value={qty} onChange={e => handleQtyChange(e.target.value)} required className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="1" />
                      </div>
                      <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Harga Satuan</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
-                          <input type="number" value={pricePerUnit} onChange={e => setPricePerUnit(e.target.value)} required className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="0" />
+                          <input type="number" value={pricePerUnit} onChange={e => handlePricePerUnitChange(e.target.value)} required className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="0" />
                         </div>
                      </div>
                   </div>
@@ -1048,13 +1137,16 @@
                     <label className="block text-sm font-medium text-slate-700 mb-1">Biaya Admin (Opsional)</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
-                      <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="0" />
+                      <input type="number" value={adminFee} onChange={e => handleAdminFeeChange(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-slate-50" placeholder="0" />
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
-                     <span className="text-sm font-medium text-slate-500">Total Harga:</span>
-                     <span className="text-lg font-bold text-teal-700">{formatIDR(totalPrice)}</span>
+                  <div className="bg-teal-50/50 p-4 rounded-xl border border-teal-200 space-y-1.5">
+                     <label className="block text-sm font-bold text-teal-800">Total Harga (Bisa diisi manual)</label>
+                     <div className="relative">
+                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-teal-600 font-bold">Rp</div>
+                       <input type="number" value={totalPrice} onChange={e => handleTotalPriceChange(e.target.value)} required className="w-full border border-teal-200 rounded-xl pl-10 pr-3 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white text-lg font-bold text-teal-700" placeholder="0" />
+                     </div>
                   </div>
 
                   <div>
@@ -1472,13 +1564,16 @@
              const initialAdminFee = (isEdit && existing?.type === 'piutang' && existingRelatedTx && existingRelatedTx.price && existing.amount)
                ? (Math.max(0, Number(existingRelatedTx.price) - Number(existing.amount)) || '')
                : '';
+
+             const now = new Date();
+             const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
              
              const [type, setType] = useState(existing?.type || viewParams.type || 'utang');
              const [personName, setPersonName] = useState(existing?.personName || '');
              const [amount, setAmount] = useState(existing?.amount || '');
              const [adminFee, setAdminFee] = useState(initialAdminFee);
-             const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
-             const [dueDate, setDueDate] = useState(existing?.dueDate || '');
+             const [date, setDate] = useState(existing?.date || todayStr);
+             const [dueDate, setDueDate] = useState(existing?.dueDate || todayStr);
              const [agreementPhotos, setAgreementPhotos] = useState(existing?.agreementPhotos || []);
 
              const handleSave = async (e) => {
@@ -1501,8 +1596,6 @@
                  const baseNote = updatedDebt.type === 'utang' ? `Pencairan Utang dari ${updatedDebt.personName}` : `Pemberian Piutang ke ${updatedDebt.personName}`;
                  const updatedNote = (updatedDebt.type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
                  
-                 setDebts(prev => prev.map(d => d.id === existing.id ? updatedDebt : d));
-                 
                  let updatedTxToSync = null;
                  if (existingRelatedTx) {
                      updatedTxToSync = {
@@ -1513,16 +1606,35 @@
                          amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null,
                          price: updatedDebt.type === 'piutang' ? updatedDebt.amount + adminAmt : null
                      };
-                     setTransactions(prev => prev.map(t => t.id === existingRelatedTx.id ? updatedTxToSync : t));
                  }
                  
                  if (BASE_URL) {
-                     const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
-                     await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
-                     
-                     if (updatedTxToSync) {
-                         await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTxToSync) }).catch(console.error);
+                     try {
+                         const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
+                         const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                         if (!resDebt.ok) {
+                             const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
+                             alert(`Gagal menyimpan data Utang/Piutang! Error: ${err.error || resDebt.status}`);
+                             return;
+                         }
+                         if (updatedTxToSync) {
+                             const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTxToSync) });
+                             if (!resTx.ok) {
+                                 const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
+                                 alert(`Gagal memperbarui transaksi terkait! Error: ${err.error || resTx.status}`);
+                                 return;
+                             }
+                         }
+                     } catch (err) {
+                         alert("Gagal koneksi ke server!");
+                         console.error("Gagal update ke DB:", err);
+                         return;
                      }
+                 }
+
+                 setDebts(prev => prev.map(d => d.id === existing.id ? updatedDebt : d));
+                 if (updatedTxToSync) {
+                     setTransactions(prev => prev.map(t => t.id === existingRelatedTx.id ? updatedTxToSync : t));
                  }
                  navigate('debt_detail', { id: existing.id });
                } else {
@@ -1540,18 +1652,30 @@
                      qty: 1
                  };
 
-                 setDebts(prev => [...prev, newDebt]);
-                 setTransactions(prev => [...prev, newTx]);
-                 
                  if (BASE_URL) {
                      try {
                          const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
-                         await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
-                         await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
+                         const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                         if (!resDebt.ok) {
+                             const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
+                             alert(`Gagal menyimpan data Utang/Piutang! Error: ${err.error || resDebt.status}`);
+                             return;
+                         }
+                         const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
+                         if (!resTx.ok) {
+                             const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
+                             alert(`Gagal menyimpan transaksi ke database! Error: ${err.error || resTx.status}`);
+                             return;
+                         }
                      } catch (err) {
+                         alert("Gagal koneksi ke server!");
                          console.error("Gagal simpan ke DB:", err);
+                         return;
                      }
                  }
+
+                 setDebts(prev => [...prev, newDebt]);
+                 setTransactions(prev => [...prev, newTx]);
                  navigate('debts', { tab: type });
                }
              };
@@ -1639,8 +1763,11 @@
              const debt = (debts || []).find(d => d && d.id === viewParams.id);
              if (!debt) return <div>Data not found</div>;
 
+             const now = new Date();
+             const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+
              const [isSettling, setIsSettling] = useState(false);
-             const [settledDate, setSettledDate] = useState(new Date().toISOString().split('T')[0]);
+             const [settledDate, setSettledDate] = useState(todayStr);
              const [adminFee, setAdminFee] = useState('');
              const [settlementPhotos, setSettlementPhotos] = useState([]);
 
@@ -1667,7 +1794,7 @@
                 navigate('debts', { tab: debt.type });
              };
 
-             const handleSettle = () => {
+             const handleSettle = async () => {
                 const updatedDebt = { ...debt, status: 'paid', settledDate, settlementPhotos };
                 const txType = debt.type === 'utang' ? 'out' : 'in';
                 const adminAmt = parseInt(adminFee) || 0;
@@ -1682,14 +1809,30 @@
                   qty: 1
                 };
 
+                if (BASE_URL) {
+                   try {
+                       const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
+                       const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                       if (!resDebt.ok) {
+                           const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
+                           alert(`Gagal menyimpan pelunasan! Error: ${err.error || resDebt.status}`);
+                           return;
+                       }
+                       const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
+                       if (!resTx.ok) {
+                           const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
+                           alert(`Gagal menyimpan transaksi pelunasan! Error: ${err.error || resTx.status}`);
+                           return;
+                       }
+                   } catch (err) {
+                       alert("Gagal koneksi ke server!");
+                       console.error(err);
+                       return;
+                   }
+                }
+
                 setDebts(prev => prev.map(d => d.id === debt.id ? updatedDebt : d));
                 setTransactions(prev => [...prev, newTx]);
-
-                if (BASE_URL) {
-                   const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
-                   fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) }).catch(console.error);
-                   fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) }).catch(console.error);
-                }
                 setIsSettling(false);
              };
 
