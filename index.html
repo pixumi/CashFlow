@@ -481,8 +481,8 @@
           
           const activeUtangList = (debts || []).filter(d => d && d.type === 'utang' && d.status === 'active');
           const activePiutangList = (debts || []).filter(d => d && d.type === 'piutang' && d.status === 'active');
-          const totalActiveUtang = activeUtangList.reduce((acc, curr) => acc + (curr?.amount || 0), 0);
-          const totalActivePiutang = activePiutangList.reduce((acc, curr) => acc + (curr?.amount || 0), 0);
+          const totalActiveUtang = activeUtangList.reduce((acc, curr) => acc + Math.max(0, (Number(curr?.amount) || 0) - (Number(curr?.paidAmount) || 0)), 0);
+          const totalActivePiutang = activePiutangList.reduce((acc, curr) => acc + Math.max(0, (Number(curr?.amount) || 0) - (Number(curr?.paidAmount) || 0)), 0);
 
           // --- SUB-COMPONENTS (PAGES) ---
 
@@ -1739,18 +1739,24 @@
                  <div className="space-y-4">
                     <h3 className="font-bold text-slate-700">Belum Lunas ({activeDebts.length})</h3>
                     {activeDebts.length === 0 && <p className="text-sm text-slate-400">Tidak ada data aktif.</p>}
-                    {activeDebts.map(d => (
+                    {activeDebts.map(d => {
+                       const paid = Number(d.paidAmount) || 0;
+                       const remaining = Math.max(0, (Number(d.amount) || 0) - paid);
+                       return (
                        <div key={d.id} onClick={() => navigate('debt_detail', { id: d.id })} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-all">
                           <div className="flex justify-between items-start mb-2">
                              <span className="font-bold text-slate-800 text-lg">{d.personName || 'Tanpa Nama'}</span>
-                             <span className={`font-bold ${tab === 'utang' ? 'text-rose-600' : 'text-teal-600'}`}>{formatIDR(d.amount)}</span>
+                             <div className="text-right">
+                                <span className={`font-bold block ${tab === 'utang' ? 'text-rose-600' : 'text-teal-600'}`}>{formatIDR(remaining)}</span>
+                                {paid > 0 && <span className="text-[10px] text-slate-400">Terbayar {formatIDR(paid)} / {formatIDR(d.amount)}</span>}
+                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-slate-500">
                              <span>Dibuat: {formatDate(d.date)}</span>
                              <span className="font-semibold text-rose-500">Jatuh Tempo: {formatDate(d.dueDate)}</span>
                           </div>
                        </div>
-                    ))}
+                    )})}
 
                     <h3 className="font-bold text-slate-700 mt-6">Sudah Lunas ({paidDebts.length})</h3>
                     {paidDebts.length === 0 && <p className="text-sm text-slate-400">Tidak ada riwayat lunas.</p>}
@@ -1805,15 +1811,28 @@
                e.preventDefault();
                if (!personName || !amount || (isEdit && !existing)) return;
                
-               const amountNum = parseInt(amount) || 0;
-               const adminAmt = type === 'piutang' ? (parseInt(adminFee) || 0) : 0;
+               const amountNum = parseInt(amount, 10) || 0;
+               const adminAmt = type === 'piutang' ? (parseInt(adminFee, 10) || 0) : 0;
+
+               const existingPaid = isEdit && existing
+                 ? (existing.status === 'paid' ? (Number(existing.amount) || 0) : (Number(existing.paidAmount) || 0))
+                 : 0;
+
+               if (isEdit && amountNum < existingPaid) {
+                 alert(`Nominal tidak boleh lebih kecil dari total yang sudah dibayarkan (${formatIDR(existingPaid)}).`);
+                 return;
+               }
+
+               const isNowPaid = isEdit && existingPaid >= amountNum && amountNum > 0;
 
                const debtData = {
-                 type, personName, amount: amountNum, date, dueDate,
-                 status: existing?.status || 'active',
+                 type, personName, amount: amountNum,
+                 paidAmount: isEdit ? existingPaid : 0,
+                 date, dueDate,
+                 status: isNowPaid ? 'paid' : 'active',
                  agreementPhotos: agreementPhotos,
                  settlementPhotos: existing?.settlementPhotos || [],
-                 settledDate: existing?.settledDate || null
+                 settledDate: isNowPaid ? (existing?.settledDate || todayStr) : null
                };
 
                if (isEdit) {
@@ -1874,7 +1893,8 @@
                      id: generateTxId(), type: txType, date: date, note: txNote, desc: txNote,
                      amount: txType === 'in' ? amountNum : null, 
                      price: txType === 'out' ? amountNum + adminAmt : null, 
-                     qty: 1
+                     qty: 1,
+                     photos: []
                  };
 
                  if (BASE_URL) {
@@ -1940,9 +1960,9 @@
                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><span className="text-slate-500 font-medium">Rp</span></div>
                          <input type="number" value={adminFee} onChange={e => setAdminFee(e.target.value)} className="w-full border border-slate-200 rounded-xl pl-12 pr-4 py-3 bg-slate-50" placeholder="0" />
                        </div>
-                       {parseInt(adminFee) > 0 && (
+                       {parseInt(adminFee, 10) > 0 && (
                          <p className="text-[11px] text-slate-400 mt-1">
-                           Total keluar dari saldo: <span className="font-semibold text-slate-600">{formatIDR((parseInt(amount) || 0) + (parseInt(adminFee) || 0))}</span> (Pokok piutang tetap {formatIDR(parseInt(amount) || 0)})
+                           Total keluar dari saldo: <span className="font-semibold text-slate-600">{formatIDR((parseInt(amount, 10) || 0) + (parseInt(adminFee, 10) || 0))}</span> (Pokok piutang tetap {formatIDR(parseInt(amount, 10) || 0)})
                          </p>
                        )}
                      </div>
@@ -1986,15 +2006,27 @@
            // 11. Debt Detail & Settlement
            const DebtDetail = () => {
              const debt = (debts || []).find(d => d && d.id === viewParams.id);
-             if (!debt) return <div>Data not found</div>;
 
              const now = new Date();
              const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
+             const totalAmount = Number(debt?.amount) || 0;
+             const alreadyPaid = debt ? (debt.status === 'paid' ? totalAmount : Math.min(totalAmount, Number(debt.paidAmount) || 0)) : 0;
+             const remainingAmount = Math.max(0, totalAmount - alreadyPaid);
+
              const [isSettling, setIsSettling] = useState(false);
              const [settledDate, setSettledDate] = useState(todayStr);
+             const [payAmount, setPayAmount] = useState(remainingAmount);
              const [adminFee, setAdminFee] = useState('');
              const [settlementPhotos, setSettlementPhotos] = useState([]);
+             const [isSubmitting, setIsSubmitting] = useState(false);
+             const submitLockRef = React.useRef(false);
+
+             useEffect(() => {
+               setPayAmount(remainingAmount);
+             }, [remainingAmount, debt?.id]);
+
+             if (!debt) return <div>Data not found</div>;
 
              const handleDelete = () => {
                 if(!confirm('Yakin ingin menghapus catatan utang/piutang ini selamanya?')) return;
@@ -2020,45 +2052,95 @@
              };
 
              const handleSettle = async () => {
-                const updatedDebt = { ...debt, status: 'paid', settledDate, settlementPhotos };
-                const txType = debt.type === 'utang' ? 'out' : 'in';
-                const adminAmt = parseInt(adminFee) || 0;
-                
-                const baseDesc = debt.type === 'utang' ? `Pelunasan Utang ke ${debt.personName}` : `Pelunasan Piutang oleh ${debt.personName}`;
-                const finalDesc = (debt.type === 'utang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
+                if (submitLockRef.current || isSubmitting) return;
 
-                const newTx = {
-                  id: generateTxId(), type: txType, date: settledDate, desc: finalDesc, note: finalDesc,
-                  amount: txType === 'in' ? parseInt(debt.amount) : null, 
-                  price: txType === 'out' ? parseInt(debt.amount) + adminAmt : null, 
-                  qty: 1
-                };
-
-                if (BASE_URL) {
-                   try {
-                       const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
-                       const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
-                       if (!resDebt.ok) {
-                           const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
-                           alert(`Gagal menyimpan pelunasan! Error: ${err.error || resDebt.status}`);
-                           return;
-                       }
-                       const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
-                       if (!resTx.ok) {
-                           const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
-                           alert(`Gagal menyimpan transaksi pelunasan! Error: ${err.error || resTx.status}`);
-                           return;
-                       }
-                   } catch (err) {
-                       alert("Gagal koneksi ke server!");
-                       console.error(err);
-                       return;
-                   }
+                const currentDebt = (debts || []).find(d => d && d.id === debt.id);
+                if (!currentDebt || currentDebt.status === 'paid') {
+                   alert('Utang/Piutang ini sudah lunas.');
+                   setIsSettling(false);
+                   return;
                 }
 
-                setDebts(prev => prev.map(d => d.id === debt.id ? updatedDebt : d));
-                setTransactions(prev => [...prev, newTx]);
-                setIsSettling(false);
+                const currentTotal = Number(currentDebt.amount) || 0;
+                const currentPaid = Number(currentDebt.paidAmount) || 0;
+                const currentRemaining = Math.max(0, currentTotal - currentPaid);
+
+                if (currentRemaining <= 0) {
+                   alert('Total pelunasan sudah mencapai nominal utang/piutang.');
+                   setIsSettling(false);
+                   return;
+                }
+
+                const payAmt = parseInt(payAmount, 10) || 0;
+                if (payAmt <= 0) {
+                   alert('Nominal dibayarkan harus lebih dari 0.');
+                   return;
+                }
+                if (payAmt > currentRemaining) {
+                   alert(`Nominal dibayarkan tidak boleh melebihi sisa ${currentDebt.type === 'utang' ? 'utang' : 'piutang'} (${formatIDR(currentRemaining)}).`);
+                   return;
+                }
+
+                submitLockRef.current = true;
+                setIsSubmitting(true);
+
+                try {
+                   const newPaidAmount = currentPaid + payAmt;
+                   const isFullyPaid = newPaidAmount >= currentTotal;
+                   const mergedPhotos = [...(Array.isArray(currentDebt.settlementPhotos) ? currentDebt.settlementPhotos : []), ...settlementPhotos];
+
+                   const updatedDebt = {
+                      ...currentDebt,
+                      paidAmount: isFullyPaid ? currentTotal : newPaidAmount,
+                      status: isFullyPaid ? 'paid' : 'active',
+                      settledDate: isFullyPaid ? settledDate : (currentDebt.settledDate || null),
+                      settlementPhotos: mergedPhotos
+                   };
+
+                   const txType = currentDebt.type === 'utang' ? 'out' : 'in';
+                   const adminAmt = currentDebt.type === 'utang' ? (parseInt(adminFee, 10) || 0) : 0;
+                   
+                   const actionLabel = isFullyPaid ? 'Pelunasan' : 'Cicilan';
+                   const baseDesc = currentDebt.type === 'utang' ? `${actionLabel} Utang ke ${currentDebt.personName}` : `${actionLabel} Piutang oleh ${currentDebt.personName}`;
+                   const finalDesc = (currentDebt.type === 'utang' && adminAmt > 0) ? `${baseDesc} (+Admin ${formatIDR(adminAmt)})` : baseDesc;
+
+                   const newTx = {
+                     id: generateTxId(), type: txType, date: settledDate, desc: finalDesc, note: finalDesc,
+                     amount: txType === 'in' ? payAmt : null, 
+                     price: txType === 'out' ? payAmt + adminAmt : null, 
+                     qty: 1,
+                     photos: settlementPhotos
+                   };
+
+                   if (BASE_URL) {
+                      const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(updatedDebt.agreementPhotos || []), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos || [])};
+                      const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                      if (!resDebt.ok) {
+                          const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
+                          alert(`Gagal menyimpan pelunasan! Error: ${err.error || resDebt.status}`);
+                          return;
+                      }
+                      const payloadTx = { ...newTx, photos: JSON.stringify(settlementPhotos) };
+                      const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payloadTx) });
+                      if (!resTx.ok) {
+                          const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
+                          alert(`Gagal menyimpan transaksi pelunasan! Error: ${err.error || resTx.status}`);
+                          return;
+                      }
+                   }
+
+                   setDebts(prev => prev.map(d => d.id === currentDebt.id ? updatedDebt : d));
+                   setTransactions(prev => [...prev, newTx]);
+                   setSettlementPhotos([]);
+                   setAdminFee('');
+                   setIsSettling(false);
+                } catch (err) {
+                   alert("Gagal koneksi ke server!");
+                   console.error(err);
+                } finally {
+                   submitLockRef.current = false;
+                   setIsSubmitting(false);
+                }
              };
 
              return (
@@ -2101,6 +2183,18 @@
                             <span className="block text-xs text-slate-400 mb-1">Jatuh Tempo</span>
                             <span className="font-medium text-rose-600">{formatDate(debt.dueDate)}</span>
                          </div>
+                         {debt.status === 'active' && alreadyPaid > 0 && (
+                           <>
+                             <div>
+                                <span className="block text-xs text-slate-400 mb-1">Sudah Dibayar</span>
+                                <span className="font-semibold text-teal-600">{formatIDR(alreadyPaid)}</span>
+                             </div>
+                             <div>
+                                <span className="block text-xs text-slate-400 mb-1">Sisa Tagihan</span>
+                                <span className="font-bold text-rose-600">{formatIDR(remainingAmount)}</span>
+                             </div>
+                           </>
+                         )}
                          {debt.status === 'paid' && (
                            <div className="col-span-2 mt-2">
                               <span className="block text-xs text-slate-400 mb-1">Dilunasi Pada</span>
@@ -2119,9 +2213,9 @@
                     <PhotoGallery photos={debt.settlementPhotos} title="Foto Bukti Pelunasan" />
                  )}
 
-                 {debt.status === 'active' && !isSettling && (
-                    <button onClick={() => setIsSettling(true)} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all">
-                       Tandai Sudah Lunas
+                 {debt.status === 'active' && remainingAmount > 0 && !isSettling && (
+                    <button onClick={() => { setPayAmount(remainingAmount); setAdminFee(''); setSettlementPhotos([]); setIsSettling(true); }} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all">
+                       {alreadyPaid > 0 ? 'Bayar Sisa / Cicilan' : 'Tandai Sudah Lunas / Bayar'}
                     </button>
                  )}
 
@@ -2133,6 +2227,20 @@
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Pelunasan</label>
                             <input type="date" value={settledDate} onChange={e => setSettledDate(e.target.value)} required className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white" />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Nominal Dibayarkan</label>
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-medium">Rp</div>
+                              <input type="number" min="1" max={remainingAmount} value={payAmount} onChange={e => setPayAmount(e.target.value)} required className="w-full border border-slate-300 rounded-xl pl-10 pr-3 py-3 bg-white font-semibold" placeholder="0" />
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              Maksimal {formatIDR(remainingAmount)}
+                              {(parseInt(payAmount, 10) || 0) > 0 && (parseInt(payAmount, 10) || 0) < remainingAmount && (
+                                <span className="text-amber-600 font-medium"> • Sisa setelah bayar: {formatIDR(remainingAmount - (parseInt(payAmount, 10) || 0))} (Cicilan)</span>
+                              )}
+                            </p>
                           </div>
 
                           {debt.type === 'utang' && (
@@ -2161,8 +2269,10 @@
                             </div>
                           </div>
                           <div className="flex gap-3 pt-2">
-                             <button onClick={() => setIsSettling(false)} className="flex-1 py-3 font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-100">Batal</button>
-                             <button onClick={handleSettle} className="flex-1 py-3 font-bold text-white bg-teal-600 rounded-xl shadow-lg hover:bg-teal-700">Simpan Pelunasan</button>
+                             <button type="button" disabled={isSubmitting} onClick={() => setIsSettling(false)} className="flex-1 py-3 font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-50">Batal</button>
+                             <button type="button" disabled={isSubmitting} onClick={handleSettle} className="flex-1 py-3 font-bold text-white bg-teal-600 rounded-xl shadow-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {isSubmitting ? 'Menyimpan...' : 'Simpan Pelunasan'}
+                             </button>
                           </div>
                        </div>
                     </div>
