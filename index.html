@@ -366,6 +366,7 @@
 
           const [currentView, setCurrentView] = useState('dashboard');
           const [viewParams, setViewParams] = useState({});
+          const [navHistory, setNavHistory] = useState([]);
 
           // --- SAFE UTILS & HELPERS ---
           const formatIDR = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
@@ -377,7 +378,28 @@
              return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
           };
           
-          const navigate = (view, params = {}) => { setCurrentView(view); setViewParams(params); };
+          const navigate = (view, params = {}, options = {}) => {
+            if (options.reset) {
+              setNavHistory([]);
+            } else if (!options.replace) {
+              const savedParams = options.currentParams ? { ...viewParams, ...options.currentParams } : viewParams;
+              setNavHistory(prev => [...prev, { view: currentView, params: savedParams }]);
+            }
+            setCurrentView(view);
+            setViewParams(params);
+          };
+
+          const goBack = (fallbackView = 'dashboard', fallbackParams = {}, mergeParams = false) => {
+            if (navHistory.length > 0) {
+              const prevEntry = navHistory[navHistory.length - 1];
+              setNavHistory(prev => prev.slice(0, -1));
+              setCurrentView(prevEntry.view);
+              setViewParams(mergeParams ? { ...(prevEntry.params || {}), ...fallbackParams } : (prevEntry.params || {}));
+            } else {
+              setCurrentView(fallbackView);
+              setViewParams(fallbackParams);
+            }
+          };
 
           const generateMaterialId = () => {
             const existing = materials.filter(m => (m.id || '').startsWith('MAT'));
@@ -442,7 +464,7 @@
               }
             }
 
-            navigate('transaction_detail', { id: tx.id, returnTo: currentView, returnParams: viewParams });
+            navigate('transaction_detail', { id: tx.id });
           };
 
           const renderTxItem = (tx) => {
@@ -610,7 +632,7 @@
             return (
               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
                 <div className="flex items-center gap-3">
-                  <button onClick={() => navigate('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <button onClick={() => goBack('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                   <h2 className="text-xl font-bold text-slate-800">Daftar {isOut ? 'Pengeluaran' : 'Pemasukan'}</h2>
                 </div>
 
@@ -666,7 +688,7 @@
               return (
                 <div className="space-y-6 pb-20 sm:pb-6 fade-in max-w-lg mx-auto">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => navigate(returnTo, returnParams)} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                    <button onClick={() => goBack('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                     <h2 className="text-xl font-bold text-slate-800">Detail Transaksi</h2>
                   </div>
                   <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center text-slate-500 text-sm">
@@ -688,7 +710,7 @@
               if (!confirm('Yakin ingin menghapus transaksi ini selamanya?')) return;
               setTransactions(prev => prev.filter(t => t.id !== tx.id));
               if (BASE_URL) fetch(`${BASE_URL}/transactions?id=${tx.id}`, { method: 'DELETE' }).catch(console.error);
-              navigate(returnTo, returnParams);
+              goBack('dashboard');
             };
 
             return (
@@ -874,7 +896,7 @@
               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => navigate('materials')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                    <button onClick={() => goBack('materials')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                     <h2 className="text-xl font-bold text-slate-800">Detail Material</h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1037,7 +1059,7 @@
               <div className="space-y-6 pb-20 sm:pb-6 fade-in">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => navigate('places')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                    <button onClick={() => goBack('places')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                     <h2 className="text-xl font-bold text-slate-800">Detail Tempat Beli</h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1133,6 +1155,8 @@
             const [showPlaceDropdown, setShowPlaceDropdown] = useState(false);
             const [note, setNote] = useState(existing?.note || '');
             const [photos, setPhotos] = useState(Array.isArray(existing?.photos) ? existing.photos : []);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const submitLockRef = React.useRef(false);
 
             const handleQtyChange = (val) => {
               setQty(val);
@@ -1233,25 +1257,30 @@
 
             const handleSave = async (e) => {
               e.preventDefault();
+              if (submitLockRef.current || isSubmitting) return;
+
               const finalTotalPrice = parseInt(totalPrice) || 0;
               const finalPricePerUnit = parseInt(pricePerUnit) || 0;
               if (!materialId || !finalTotalPrice || !placeId) return;
 
-              const adminAmt = parseInt(adminFee) || 0;
-              const adminText = adminAmt > 0 ? `(+Admin ${formatIDR(adminAmt)})` : '';
-              
-              let finalNote = note;
-              if (adminAmt > 0 && !note.includes(adminText)) {
-                 finalNote = [note, adminText].filter(Boolean).join(' ');
-              }
+              submitLockRef.current = true;
+              setIsSubmitting(true);
 
-              const newTx = {
-                id: isEdit ? existing.id : generateTxId(), type: 'out', date, materialId, qty: parseFloat(qty),
-                pricePerUnit: finalPricePerUnit, price: finalTotalPrice, placeId, note: finalNote, photos
-              };
+              try {
+                  const adminAmt = parseInt(adminFee) || 0;
+                  const adminText = adminAmt > 0 ? `(+Admin ${formatIDR(adminAmt)})` : '';
+                  
+                  let finalNote = note;
+                  if (adminAmt > 0 && !note.includes(adminText)) {
+                     finalNote = [note, adminText].filter(Boolean).join(' ');
+                  }
 
-              if (BASE_URL) {
-                  try {
+                  const newTx = {
+                    id: isEdit ? existing.id : generateTxId(), type: 'out', date, materialId, qty: parseFloat(qty),
+                    pricePerUnit: finalPricePerUnit, price: finalTotalPrice, placeId, note: finalNote, photos
+                  };
+
+                  if (BASE_URL) {
                       const payloadTx = { ...newTx, photos: JSON.stringify(photos) };
                       const res = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payloadTx) });
                       if (!res.ok) {
@@ -1259,14 +1288,16 @@
                           alert(`Gagal menyimpan! Error: ${err.error || res.status}`);
                           return;
                       }
-                  } catch (error) {
-                      alert("Gagal koneksi server!");
-                      return;
                   }
-              }
 
-              setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
-              navigate('dashboard');
+                  setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
+                  goBack('dashboard');
+              } catch (error) {
+                  alert("Gagal koneksi server!");
+              } finally {
+                  submitLockRef.current = false;
+                  setIsSubmitting(false);
+              }
             };
 
             const outMaterials = materials.filter(m => m.flowType === 'out' || m.flowType === undefined);
@@ -1280,7 +1311,7 @@
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                 <div className="flex items-center gap-3">
-                  <button onClick={() => navigate('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <button onClick={() => goBack('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                   <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Pengeluaran' : 'Catat Pengeluaran'}</h2>
                 </div>
 
@@ -1400,7 +1431,9 @@
                     </div>
                   </div>
 
-                  <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-teal-200 transition-all mt-4">{isEdit ? 'Simpan Perubahan' : 'Simpan Pengeluaran'}</button>
+                  <button type="submit" disabled={isSubmitting} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-teal-200 transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {isSubmitting ? 'Menyimpan...' : (isEdit ? 'Simpan Perubahan' : 'Simpan Pengeluaran')}
+                  </button>
                 </form>
               </div>
             );
@@ -1435,22 +1468,22 @@
               };
 
               if (isEdit) {
-                setMaterials(materials.map(m => m.id === existing.id ? { ...m, ...matData, photos } : m));
-                if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, ...matData}) }).catch(console.error);
-                navigate('material_detail', { id: existing.id });
-              } else {
-                const newId = generateMaterialId();
-                const newMat = { id: newId, ...matData, photos };
-                setMaterials([...materials, newMat]);
-                if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...newMat, photos: matData.photos}) }).catch(console.error);
-                navigate(viewParams.returnTo || 'materials', { prefilledMaterial: newId });
-              }
+                  setMaterials(materials.map(m => m.id === existing.id ? { ...m, ...matData, photos } : m));
+                  if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, ...matData}) }).catch(console.error);
+                  goBack('material_detail', { id: existing.id });
+                } else {
+                  const newId = generateMaterialId();
+                  const newMat = { id: newId, ...matData, photos };
+                  setMaterials([...materials, newMat]);
+                  if (BASE_URL) fetch(`${BASE_URL}/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...newMat, photos: matData.photos}) }).catch(console.error);
+                  goBack(viewParams.returnTo || 'materials', { prefilledMaterial: newId }, !!viewParams.returnTo);
+                }
             };
 
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
-                  <button onClick={() => navigate(isEdit ? 'material_detail' : (viewParams.returnTo || 'materials'), { id: isEdit ? existing.id : undefined })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <button onClick={() => goBack(isEdit ? 'material_detail' : (viewParams.returnTo || 'materials'), { id: isEdit ? existing?.id : undefined })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                   <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Material Master' : 'Buat Material Master'}</h2>
                 </div>
                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
@@ -1555,21 +1588,21 @@
             const handleSave = (e) => {
               e.preventDefault();
               if (isEdit) {
-                 setPlaces(places.map(p => p.id === existing.id ? { ...p, name, address, mapLink, photos } : p));
-                 if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, name, address, mapLink, photos: JSON.stringify(photos)}) }).catch(console.error);
-                 navigate('place_detail', { id: existing.id });
-              } else {
-                 const newId = generatePlaceId();
-                 const newPlace = { id: newId, name, address, mapLink, photos };
-                 setPlaces([...places, newPlace]);
-                 if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...newPlace, photos: JSON.stringify(photos)}) }).catch(console.error);
-                 navigate(viewParams.returnTo || 'places', { prefilledPlace: newId });
-              }
+               setPlaces(places.map(p => p.id === existing.id ? { ...p, name, address, mapLink, photos } : p));
+               if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: existing.id, name, address, mapLink, photos: JSON.stringify(photos)}) }).catch(console.error);
+               goBack('place_detail', { id: existing.id });
+            } else {
+               const newId = generatePlaceId();
+               const newPlace = { id: newId, name, address, mapLink, photos };
+               setPlaces([...places, newPlace]);
+               if (BASE_URL) fetch(`${BASE_URL}/places`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...newPlace, photos: JSON.stringify(photos)}) }).catch(console.error);
+               goBack(viewParams.returnTo || 'places', { prefilledPlace: newId }, !!viewParams.returnTo);
+            }
             };
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
-                  <button onClick={() => navigate(isEdit ? 'place_detail' : (viewParams.returnTo || 'dashboard'), { id: isEdit ? existing.id : undefined })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <button onClick={() => goBack(isEdit ? 'place_detail' : (viewParams.returnTo || 'dashboard'), { id: isEdit ? existing?.id : undefined })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                   <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Toko / Vendor' : 'Tambah Tempat'}</h2>
                 </div>
                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
@@ -1609,7 +1642,7 @@
            // 8. Add Income Form
            const AddIncome = () => {
             const isEdit = !!viewParams.editId;
-            const existing = isEdit ? transactions.find(t => t.id === viewParams.editId) : null;
+            const existing = isEdit ? (transactions || []).find(t => t && t.id === viewParams.editId) : null;
 
             const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
             const [materialId, setMaterialId] = useState(existing?.materialId || '');
@@ -1619,6 +1652,8 @@
             const [showDescDropdown, setShowDescDropdown] = useState(false);
             const [amount, setAmount] = useState(existing?.amount || '');
             const [note, setNote] = useState(existing?.note || '');
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const submitLockRef = React.useRef(false);
 
             useEffect(() => {
               if (existing) {
@@ -1638,24 +1673,36 @@
 
             const handleSave = async (e) => {
               e.preventDefault();
+              if (submitLockRef.current || isSubmitting) return;
               if (!materialId || !amount) return;
-              const newTx = { id: isEdit ? existing.id : generateTxId(), type: 'in', date, materialId, amount: parseInt(amount), note };
-              
-              setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
 
-              if (BASE_URL) {
-                  try {
-                      const res = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
+              submitLockRef.current = true;
+              setIsSubmitting(true);
+
+              try {
+                  const newTx = {
+                    id: isEdit ? existing.id : generateTxId(), type: 'in', date, materialId,
+                    amount: parseInt(amount), note, photos: Array.isArray(existing?.photos) ? existing.photos : []
+                  };
+
+                  if (BASE_URL) {
+                      const payloadTx = { ...newTx, photos: JSON.stringify(newTx.photos) };
+                      const res = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payloadTx) });
                       if (!res.ok) {
-                          alert(`Gagal menyimpan ke database!`);
+                          const err = await res.json().catch(() => ({ error: res.statusText }));
+                          alert(`Gagal menyimpan ke database! Error: ${err.error || res.status}`);
                           return;
                       }
-                  } catch (error) {
-                          alert("Gagal koneksi ke server!");
-                      return;
                   }
+
+                  setTransactions(prev => isEdit ? prev.map(t => t.id === existing.id ? newTx : t) : [...prev, newTx]);
+                  goBack('dashboard');
+              } catch (error) {
+                  alert("Gagal koneksi ke server!");
+              } finally {
+                  submitLockRef.current = false;
+                  setIsSubmitting(false);
               }
-              navigate('dashboard');
             };
 
             const inMaterials = materials.filter(m => m.flowType === 'in' || m.category === 'Income');
@@ -1668,7 +1715,7 @@
             return (
               <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
-                  <button onClick={() => navigate('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                  <button onClick={() => goBack('dashboard')} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                   <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Pemasukan' : 'Catat Pemasukan'}</h2>
                 </div>
                 <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
@@ -1709,7 +1756,9 @@
                     <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Tambahan (Note)</label>
                     <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50 text-sm" placeholder="Catatan opsional..."></textarea>
                   </div>
-                  <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4">{isEdit ? 'Simpan Perubahan' : 'Simpan Pemasukan'}</button>
+                  <button type="submit" disabled={isSubmitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    {isSubmitting ? 'Menyimpan...' : (isEdit ? 'Simpan Perubahan' : 'Simpan Pemasukan')}
+                  </button>
                 </form>
               </div>
             )
@@ -1806,9 +1855,12 @@
              const [date, setDate] = useState(existing?.date || todayStr);
              const [dueDate, setDueDate] = useState(existing?.dueDate || todayStr);
              const [agreementPhotos, setAgreementPhotos] = useState(existing?.agreementPhotos || []);
+             const [isSubmitting, setIsSubmitting] = useState(false);
+             const submitLockRef = React.useRef(false);
 
              const handleSave = async (e) => {
                e.preventDefault();
+               if (submitLockRef.current || isSubmitting) return;
                if (!personName || !amount || (isEdit && !existing)) return;
                
                const amountNum = parseInt(amount, 10) || 0;
@@ -1823,112 +1875,113 @@
                  return;
                }
 
-               const isNowPaid = isEdit && existingPaid >= amountNum && amountNum > 0;
+               submitLockRef.current = true;
+               setIsSubmitting(true);
 
-               const debtData = {
-                 type, personName, amount: amountNum,
-                 paidAmount: isEdit ? existingPaid : 0,
-                 date, dueDate,
-                 status: isNowPaid ? 'paid' : 'active',
-                 agreementPhotos: agreementPhotos,
-                 settlementPhotos: existing?.settlementPhotos || [],
-                 settledDate: isNowPaid ? (existing?.settledDate || todayStr) : null
-               };
+               try {
+                 const isNowPaid = isEdit && existingPaid >= amountNum && amountNum > 0;
 
-               if (isEdit) {
-                 const updatedDebt = { id: existing.id, ...debtData };
-                 const baseNote = updatedDebt.type === 'utang' ? `Pencairan Utang dari ${updatedDebt.personName}` : `Pemberian Piutang ke ${updatedDebt.personName}`;
-                 const updatedNote = (updatedDebt.type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
-                 
-                 let updatedTxToSync = null;
-                 if (existingRelatedTx) {
-                     updatedTxToSync = {
-                         ...existingRelatedTx,
-                         date: updatedDebt.date,
-                         note: updatedNote,
-                         desc: updatedNote,
-                         amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null,
-                         price: updatedDebt.type === 'piutang' ? updatedDebt.amount + adminAmt : null
-                     };
-                 }
-                 
-                 if (BASE_URL) {
-                     try {
-                         const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
-                         const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
-                         if (!resDebt.ok) {
-                             const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
-                             alert(`Gagal menyimpan data Utang/Piutang! Error: ${err.error || resDebt.status}`);
-                             return;
-                         }
-                         if (updatedTxToSync) {
-                             const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updatedTxToSync) });
-                             if (!resTx.ok) {
-                                 const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
-                                 alert(`Gagal memperbarui transaksi terkait! Error: ${err.error || resTx.status}`);
-                                 return;
-                             }
-                         }
-                     } catch (err) {
-                         alert("Gagal koneksi ke server!");
-                         console.error("Gagal update ke DB:", err);
-                         return;
-                     }
-                 }
-
-                 setDebts(prev => prev.map(d => d.id === existing.id ? updatedDebt : d));
-                 if (updatedTxToSync) {
-                     setTransactions(prev => prev.map(t => t.id === existingRelatedTx.id ? updatedTxToSync : t));
-                 }
-                 navigate('debt_detail', { id: existing.id });
-               } else {
-                 const newId = generateDebtId();
-                 const newDebt = { id: newId, ...debtData };
-                 
-                 const txType = type === 'utang' ? 'in' : 'out'; 
-                 const baseNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
-                 const txNote = (type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
-                 
-                 const newTx = {
-                     id: generateTxId(), type: txType, date: date, note: txNote, desc: txNote,
-                     amount: txType === 'in' ? amountNum : null, 
-                     price: txType === 'out' ? amountNum + adminAmt : null, 
-                     qty: 1,
-                     photos: []
+                 const debtData = {
+                   type, personName, amount: amountNum,
+                   paidAmount: isEdit ? existingPaid : 0,
+                   date, dueDate,
+                   status: isNowPaid ? 'paid' : 'active',
+                   agreementPhotos: agreementPhotos,
+                   settlementPhotos: existing?.settlementPhotos || [],
+                   settledDate: isNowPaid ? (existing?.settledDate || todayStr) : null
                  };
 
-                 if (BASE_URL) {
-                     try {
-                         const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
-                         const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
-                         if (!resDebt.ok) {
-                             const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
-                             alert(`Gagal menyimpan data Utang/Piutang! Error: ${err.error || resDebt.status}`);
-                             return;
-                         }
-                         const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(newTx) });
-                         if (!resTx.ok) {
-                             const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
-                             alert(`Gagal menyimpan transaksi ke database! Error: ${err.error || resTx.status}`);
-                             return;
-                         }
-                     } catch (err) {
-                         alert("Gagal koneksi ke server!");
-                         console.error("Gagal simpan ke DB:", err);
-                         return;
-                     }
-                 }
+                 if (isEdit) {
+                   const updatedDebt = { id: existing.id, ...debtData };
+                   const baseNote = updatedDebt.type === 'utang' ? `Pencairan Utang dari ${updatedDebt.personName}` : `Pemberian Piutang ke ${updatedDebt.personName}`;
+                   const updatedNote = (updatedDebt.type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
+                   
+                   let updatedTxToSync = null;
+                   if (existingRelatedTx) {
+                       updatedTxToSync = {
+                           ...existingRelatedTx,
+                           date: updatedDebt.date,
+                           note: updatedNote,
+                           desc: updatedNote,
+                           amount: updatedDebt.type === 'utang' ? updatedDebt.amount : null,
+                           price: updatedDebt.type === 'piutang' ? updatedDebt.amount + adminAmt : null
+                       };
+                   }
+                   
+                   if (BASE_URL) {
+                       const safeDebt = {...updatedDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: JSON.stringify(updatedDebt.settlementPhotos)};
+                       const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                       if (!resDebt.ok) {
+                           const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
+                           alert(`Gagal menyimpan data Utang/Piutang! Error: ${err.error || resDebt.status}`);
+                           return;
+                       }
+                       if (updatedTxToSync) {
+                           const payloadTx = { ...updatedTxToSync, photos: JSON.stringify(Array.isArray(updatedTxToSync.photos) ? updatedTxToSync.photos : []) };
+                           const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payloadTx) });
+                           if (!resTx.ok) {
+                               const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
+                               alert(`Gagal memperbarui transaksi terkait! Error: ${err.error || resTx.status}`);
+                               return;
+                           }
+                       }
+                   }
 
-                 setDebts(prev => [...prev, newDebt]);
-                 setTransactions(prev => [...prev, newTx]);
-                 navigate('debts', { tab: type });
+                   setDebts(prev => prev.map(d => d.id === existing.id ? updatedDebt : d));
+                   if (updatedTxToSync) {
+                       setTransactions(prev => prev.map(t => t.id === existingRelatedTx.id ? updatedTxToSync : t));
+                   }
+                   goBack('debt_detail', { id: existing.id });
+                 } else {
+                   const newId = generateDebtId();
+                   const newDebt = { id: newId, ...debtData };
+                   
+                   const txType = type === 'utang' ? 'in' : 'out'; 
+                   const baseNote = type === 'utang' ? `Pencairan Utang dari ${personName}` : `Pemberian Piutang ke ${personName}`;
+                   const txNote = (type === 'piutang' && adminAmt > 0) ? `${baseNote} (+Admin ${formatIDR(adminAmt)})` : baseNote;
+                   
+                   const newTx = {
+                       id: generateTxId(), type: txType, date: date, note: txNote, desc: txNote,
+                       amount: txType === 'in' ? amountNum : null, 
+                       price: txType === 'out' ? amountNum + adminAmt : null, 
+                       qty: 1,
+                       photos: []
+                   };
+
+                   if (BASE_URL) {
+                       const safeDebt = {...newDebt, agreementPhotos: JSON.stringify(agreementPhotos), settlementPhotos: "[]"};
+                       const resDebt = await fetch(`${BASE_URL}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(safeDebt) });
+                       if (!resDebt.ok) {
+                           const err = await resDebt.json().catch(() => ({ error: resDebt.statusText }));
+                           alert(`Gagal menyimpan data Utang/Piutang! Error: ${err.error || resDebt.status}`);
+                           return;
+                       }
+                       const payloadTx = { ...newTx, photos: "[]" };
+                       const resTx = await fetch(`${BASE_URL}/transactions`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payloadTx) });
+                       if (!resTx.ok) {
+                           const err = await resTx.json().catch(() => ({ error: resTx.statusText }));
+                           alert(`Gagal menyimpan transaksi ke database! Error: ${err.error || resTx.status}`);
+                           return;
+                       }
+                   }
+
+                   setDebts(prev => [...prev, newDebt]);
+                   setTransactions(prev => [...prev, newTx]);
+                   navigate('debts', { tab: type }, { reset: true });
+                 }
+               } catch (err) {
+                 alert("Gagal koneksi ke server!");
+                 console.error("Gagal simpan ke DB:", err);
+               } finally {
+                 submitLockRef.current = false;
+                 setIsSubmitting(false);
                }
              };
 
              return (
                <div className="max-w-md mx-auto space-y-6 pb-20 sm:pb-6 fade-in">
                  <div className="flex items-center gap-3">
-                   <button onClick={() => navigate(isEdit ? 'debt_detail' : 'debts', { id: isEdit ? existing?.id : undefined, tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
+                   <button onClick={() => goBack(isEdit ? 'debt_detail' : 'debts', { id: isEdit ? existing?.id : undefined, tab: type })} className="p-2 bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-800"><IconChevronLeft /></button>
                    <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Catatan' : 'Catat Baru'}</h2>
                  </div>
                  
@@ -1995,8 +2048,8 @@
                      </div>
                    </div>
 
-                   <button type="submit" className={`w-full text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all ${type === 'utang' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-600 hover:bg-teal-700'}`}>
-                     {isEdit ? 'Simpan Perubahan' : `Simpan ${type === 'utang' ? 'Utang' : 'Piutang'}`}
+                   <button type="submit" disabled={isSubmitting} className={`w-full text-white font-bold py-4 rounded-xl shadow-lg mt-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${type === 'utang' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-600 hover:bg-teal-700'}`}>
+                     {isSubmitting ? 'Menyimpan...' : (isEdit ? 'Simpan Perubahan' : `Simpan ${type === 'utang' ? 'Utang' : 'Piutang'}`)}
                    </button>
                  </form>
                </div>
